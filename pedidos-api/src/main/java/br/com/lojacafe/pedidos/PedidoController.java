@@ -10,24 +10,23 @@ import org.springframework.web.bind.annotation.*;
 public class PedidoController {
 
     private final PedidoRepository repository;
-    private final PagamentosClient pagamentos;
+    private final PedidoEventos eventos;
 
-    public PedidoController(PedidoRepository repository, PagamentosClient pagamentos) {
+    public PedidoController(PedidoRepository repository, PedidoEventos eventos) {
         this.repository = repository;
-        this.pagamentos = pagamentos;
+        this.eventos = eventos;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Pedido criar(@Valid @RequestBody NovoPedido novo) {
+    public Pedido criar(@Valid @RequestBody NovoPedido novo) throws Exception {
         Pedido pedido = new Pedido(novo.cliente(), novo.item(), novo.quantidade(), novo.precoUnitario());
         pedido = repository.save(pedido);
 
-        // Ato 2: liga para o Pagamentos e ESPERA (~3 s) antes de responder ao front.
-        // Sem try/catch de propósito: se o Pagamentos cair, queremos ver o que acontece.
-        var resposta = pagamentos.pagar(pedido);
-        pedido.concluir("APROVADO".equals(resposta.status()), resposta.motivo(), resposta.instancia());
-        return repository.save(pedido);
+        // Ato 3: em vez de ligar para o Pagamentos, anota o fato no Kafka e responde na hora.
+        // Quem quiser saber (Pagamentos, Analytics...) lê o tópico no seu ritmo.
+        eventos.publicarCriado(pedido);
+        return pedido;
     }
 
     @GetMapping
