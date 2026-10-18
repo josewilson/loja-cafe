@@ -1,0 +1,41 @@
+name: loja-cafe
+# Kafka + painel para a Loja Café (Cap 03). Os apps rodam no seu computador, fora do Docker.
+services:
+  # Cap 03: um único broker Kafka em modo KRaft (sem Zookeeper). Só para aula.
+  kafka:
+    image: apache/kafka:3.9.1
+    hostname: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # Duas portas de entrada: 9092 para os apps no seu computador, 19092 para o painel (outro container).
+      KAFKA_LISTENERS: HOST://:9092,INTERNO://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:${KAFKA_PORT:-9092},INTERNO://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: HOST:PLAINTEXT,INTERNO:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports: ["127.0.0.1:${KAFKA_PORT:-9092}:9092"]
+    volumes: ["dados-kafka:/var/lib/kafka/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --list"]
+      interval: 5s
+      timeout: 15s
+      retries: 30
+  kafka-ui:
+    image: ghcr.io/kafbat/kafka-ui:v1.3.0
+    environment:
+      KAFKA_CLUSTERS_0_NAME: aula
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:19092
+    ports: ["127.0.0.1:${KAFKA_UI_PORT:-8090}:8080"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+volumes:
+  dados-kafka:

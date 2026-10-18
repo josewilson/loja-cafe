@@ -1,0 +1,34 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #2b2118;
+  background: #f6efe6;
+}
+body { margin: 0; }
+main { max-width: 720px; margin: 0 auto; padding: 24px 16px 48px; }
+header h1 { margin: 0; font-size: 2rem; }
+header p { margin: 4px 0 20px; color: #6b5a4a; }
+.cartao { background: #fff; border-radius: 14px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px #0000000f; }
+label { display: grid; gap: 6px; font-weight: 600; margin-bottom: 14px; }
+input { font: inherit; padding: 10px; border: 1px solid #d8c8b6; border-radius: 8px; }
+fieldset { border: 0; padding: 0; margin: 0 0 14px; }
+legend { font-weight: 600; margin-bottom: 6px; }
+.cardapio { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.opcao { display: grid; gap: 4px; text-align: left; padding: 12px; border: 2px solid #eadccb; border-radius: 10px; background: #fffaf4; cursor: pointer; font: inherit; }
+.opcao.escolhida { border-color: #8a4b1f; background: #fbe9d7; }
+.rodape { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+button[type='submit'] { font: inherit; font-weight: 700; padding: 10px 18px; border: 0; border-radius: 10px; background: #8a4b1f; color: #fff; cursor: pointer; }
+button[type='submit']:disabled { background: #b89a82; cursor: wait; }
+.tempo { margin: 12px 0 0; color: #6b5a4a; }
+.erro { margin: 12px 0 0; padding: 10px; border-radius: 8px; background: #fde2e1; color: #8c1d18; }
+h2 { margin-top: 0; display: flex; justify-content: space-between; align-items: baseline; }
+h2 small { font-size: .85rem; font-weight: 500; color: #6b5a4a; }
+.vazio { color: #6b5a4a; }
+.pedidos { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.pedidos li { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid #eadccb; border-radius: 10px; flex-wrap: wrap; }
+.id { font-weight: 700; color: #8a4b1f; }
+.desc { flex: 1; min-width: 200px; }
+.caixa { font-size: .8rem; padding: 2px 8px; border-radius: 99px; background: #e8eef9; color: #1f3d7a; }
+.status { font-size: .85rem; font-weight: 700; padding: 4px 10px; border-radius: 99px; }
+.AGUARDANDO_PAGAMENTO { background: #fff3c4; color: #7a5a00; }
+.PAGO { background: #d9f5df; color: #17602b; }
+.RECUSADO { background: #fde2e1; color: #8c1d18; }
