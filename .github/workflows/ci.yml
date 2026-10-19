@@ -70,7 +70,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Sobe Postgres e Kafka (senhas do modelo: a máquina do CI é descartável)
+      - name: Sobe Postgres e Kafka (senhas do modelo, pois a máquina do CI é descartável)
         run: |
           cp .env.example .env
           docker compose up -d --wait postgres kafka
