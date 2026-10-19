@@ -9,13 +9,13 @@ do cliente Java: a mesma chave cai na mesma partição, venha de onde vier.
 ## Tópico `pedidos-criados` (3 partições)
 Quem publica: `pedidos-api`, logo depois de gravar o pedido.
 ```json
-{ "versao": 2, "pedidoId": 12, "cliente": "Ana",
+{ "versao": 3, "pedidoId": 12, "lojaId": 1, "cliente": "Ana",
   "itens": [ { "item": "Café coado", "quantidade": 2 } ],
   "valor": 17.00, "formaPagamento": "PIX", "parcelas": 1, "criadoEm": "2026-10-17T16:05:00Z" }
 ```
-`valor` = total do pedido. `formaPagamento`: `PIX`, `CREDITO`, `DEBITO` ou `DINHEIRO`.
-**Versão 1** (eventos antigos que ainda estão no tópico): `"item"` e `"quantidade"` soltos, sem `itens`
-nem `formaPagamento`. Quem lê aceita as duas; sem `formaPagamento`, vale a regra do cartão de crédito.
+`valor` = total do pedido. `lojaId` = a loja que vendeu. `formaPagamento`: `PIX`, `CREDITO`, `DEBITO` ou `DINHEIRO`.
+**Versão 2** (eventos antigos no tópico): igual, sem `lojaId`. **Versão 1**: `"item"` e `"quantidade"` soltos, sem `itens`
+nem `formaPagamento`. Quem lê aceita as três; sem `formaPagamento`, vale a regra do cartão de crédito.
 
 ## Tópico `pagamentos-resultados` (3 partições)
 Quem publica: `pagamentos-py`, depois de decidir.
