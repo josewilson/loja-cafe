@@ -31,9 +31,11 @@ public class UsuarioController {
     private final LojaRepository lojas;
     private final SessaoRepository sessoes;
     private final Auditor auditor;
-    private final BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder bcrypt;
 
-    public UsuarioController(UsuarioRepository usuarios, LojaRepository lojas, SessaoRepository sessoes, Auditor auditor) {
+    public UsuarioController(UsuarioRepository usuarios, LojaRepository lojas, SessaoRepository sessoes, Auditor auditor,
+                             BCryptPasswordEncoder bcrypt) {
+        this.bcrypt = bcrypt;
         this.usuarios = usuarios;
         this.lojas = lojas;
         this.sessoes = sessoes;

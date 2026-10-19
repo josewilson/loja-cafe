@@ -30,12 +30,15 @@ public class AuthController {
     private final SessaoRepository sessoes;
     private final LimiteTentativas limite;
     private final Auditor auditor;
-    private final BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
+    private final BCryptPasswordEncoder bcrypt;
     private final SecureRandom aleatorio = new SecureRandom();
     // Hash de uma senha qualquer: e-mail inexistente gasta o mesmo tempo que senha errada.
-    private final String hashFalso = bcrypt.encode("senha-que-ninguem-tem");
+    private final String hashFalso;
 
-    public AuthController(UsuarioRepository usuarios, SessaoRepository sessoes, LimiteTentativas limite, Auditor auditor) {
+    public AuthController(UsuarioRepository usuarios, SessaoRepository sessoes, LimiteTentativas limite, Auditor auditor,
+                          BCryptPasswordEncoder bcrypt) {
+        this.bcrypt = bcrypt;
+        this.hashFalso = bcrypt.encode("senha-que-ninguem-tem");
         this.usuarios = usuarios;
         this.sessoes = sessoes;
         this.limite = limite;

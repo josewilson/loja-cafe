@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.ResultActions;
         "spring.datasource.url=jdbc:h2:mem:teste",
         "DB_PASSWORD=teste", "KAFKA_USER=teste", "KAFKA_PASSWORD=teste", // sem Kafka nem Postgres de verdade aqui
         "lojacafe.admin.email=admin@teste.com", "lojacafe.admin.senha=admin12345",
+        "lojacafe.bcrypt-custo=4", // BCrypt no custo mínimo: nos testes a velocidade importa mais que a força (em produção o padrão é 10)
         // Nos testes o Hibernate cria as tabelas no H2 e o cardápio vem de seed-teste.sql (as migrações são para o Postgres).
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=create-drop",

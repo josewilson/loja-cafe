@@ -18,13 +18,15 @@ public class AdminInicial implements SmartInitializingSingleton {
     private static final Logger log = LoggerFactory.getLogger(AdminInicial.class);
 
     private final UsuarioRepository usuarios;
+    private final BCryptPasswordEncoder bcrypt;
     private final String email;
     private final String senha;
 
-    public AdminInicial(UsuarioRepository usuarios,
+    public AdminInicial(UsuarioRepository usuarios, BCryptPasswordEncoder bcrypt,
                         @Value("${lojacafe.admin.email:}") String email,
                         @Value("${lojacafe.admin.senha:}") String senha) {
         this.usuarios = usuarios;
+        this.bcrypt = bcrypt;
         this.email = email;
         this.senha = senha;
     }
@@ -38,7 +40,7 @@ public class AdminInicial implements SmartInitializingSingleton {
             log.warn("Nenhum ADMIN cadastrado. Defina ADMIN_EMAIL e ADMIN_PASSWORD (mínimo 8 caracteres) em infra/.env e reinicie.");
             return;
         }
-        usuarios.save(new Usuario("Administrador", email, new BCryptPasswordEncoder().encode(senha), Papel.ADMIN, null));
+        usuarios.save(new Usuario("Administrador", email, bcrypt.encode(senha), Papel.ADMIN, null));
         log.info("ADMIN inicial criado: {}", email.trim().toLowerCase());
     }
 }
