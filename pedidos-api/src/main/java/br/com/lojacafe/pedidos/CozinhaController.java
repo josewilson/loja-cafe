@@ -21,8 +21,10 @@ public class CozinhaController {
     private final PedidoRepository repository;
     private final EstoqueLojaRepository estoque;
     private final Auditor auditor;
+    private final ConsumoInsumos consumo;
 
-    public CozinhaController(PedidoRepository repository, EstoqueLojaRepository estoque, Auditor auditor) {
+    public CozinhaController(PedidoRepository repository, EstoqueLojaRepository estoque, Auditor auditor, ConsumoInsumos consumo) {
+        this.consumo = consumo;
         this.repository = repository;
         this.estoque = estoque;
         this.auditor = auditor;
@@ -74,11 +76,16 @@ public class CozinhaController {
     public Pedido cancelar(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario, @PathVariable Long id,
                            @Valid @RequestBody(required = false) Cancelamento corpo) {
         Pedido pedido = carregar(usuario, id);
+        Preparo antes = pedido.getPreparo();
         if (!pedido.cancelar()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Este pedido não pode mais ser cancelado");
         }
         // A trava da linha garante que só um cancelamento chega aqui: o estoque volta uma única vez.
         pedido.getItens().forEach(i -> estoque.repor(pedido.getLojaId(), i.getProdutoId(), i.getQuantidade()));
+        // Insumos: só voltam se ainda estava na fila. Se a cozinha já começou, foram usados de verdade (perda).
+        if (antes == Preparo.NA_FILA) {
+            consumo.devolver(pedido);
+        }
         String motivo = corpo == null || corpo.motivo() == null ? "" : corpo.motivo().trim();
         auditor.registrar(usuario, pedido.getLojaId(), "PEDIDO_CANCELADO", "Pedido", id, motivo.isEmpty() ? null : motivo);
         return repository.save(pedido);

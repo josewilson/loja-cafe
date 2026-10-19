@@ -18,9 +18,11 @@ public class PedidoController {
     private final EstoqueLojaRepository estoque;
     private final PedidoEventos eventos;
     private final Auditor auditor;
+    private final ConsumoInsumos consumo;
 
     public PedidoController(PedidoRepository repository, ProdutoRepository produtos, EstoqueLojaRepository estoque,
-                            PedidoEventos eventos, Auditor auditor) {
+                            PedidoEventos eventos, Auditor auditor, ConsumoInsumos consumo) {
+        this.consumo = consumo;
         this.repository = repository;
         this.produtos = produtos;
         this.estoque = estoque;
@@ -55,6 +57,7 @@ public class PedidoController {
             itens.add(new ItemPedido(produto, i.quantidade(), i.tamanho(), i.extras()));
         }
         Pedido pedido = repository.save(new Pedido(usuario, novo.cliente(), forma, novo.parcelas(), novo.observacao(), itens));
+        consumo.registrarEBaixar(pedido); // insumos da ficha técnica; nunca bloqueia a venda
         auditor.registrar(usuario, pedido.getLojaId(), "PEDIDO_CRIADO", "Pedido", pedido.getId(), "valor " + pedido.getValor());
 
         // Ato 3: anota o fato no Kafka e responde na hora; o Pagamentos lê o tópico no seu ritmo.

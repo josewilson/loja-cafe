@@ -2,6 +2,7 @@ package br.com.lojacafe.pedidos;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,8 +26,13 @@ public class LojaController {
     private final ProdutoRepository produtos;
     private final EstoqueLojaRepository estoque;
     private final Auditor auditor;
+    private final InsumoRepository insumos;
+    private final EstoqueInsumoRepository estoqueInsumos;
 
-    public LojaController(LojaRepository lojas, ProdutoRepository produtos, EstoqueLojaRepository estoque, Auditor auditor) {
+    public LojaController(LojaRepository lojas, ProdutoRepository produtos, EstoqueLojaRepository estoque, Auditor auditor,
+                          InsumoRepository insumos, EstoqueInsumoRepository estoqueInsumos) {
+        this.insumos = insumos;
+        this.estoqueInsumos = estoqueInsumos;
         this.lojas = lojas;
         this.produtos = produtos;
         this.estoque = estoque;
@@ -51,6 +57,10 @@ public class LojaController {
         int inicial = nova.estoqueInicial() == null ? 0 : nova.estoqueInicial();
         for (Produto p : produtos.findAll()) {
             estoque.save(new EstoqueLoja(loja.getId(), p.getId(), inicial));
+        }
+        // E a loja nova também começa com a linha de estoque (zerada) de cada insumo.
+        for (Insumo insumo : insumos.findAll()) {
+            estoqueInsumos.save(new EstoqueInsumo(loja.getId(), insumo.getId(), BigDecimal.ZERO, BigDecimal.ZERO));
         }
         auditor.registrar(quem, loja.getId(), "LOJA_CRIADA", "Loja", loja.getId(), "nome " + loja.getNome() + ", estoque inicial " + inicial);
         return LojaVista.de(loja);

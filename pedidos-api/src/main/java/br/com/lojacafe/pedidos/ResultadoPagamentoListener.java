@@ -18,10 +18,12 @@ public class ResultadoPagamentoListener {
 
     private final PedidoRepository repository;
     private final EstoqueLojaRepository estoque;
+    private final ConsumoInsumos consumo;
     private final JsonMapper json;
 
-    public ResultadoPagamentoListener(PedidoRepository repository, EstoqueLojaRepository estoque, JsonMapper json) {
+    public ResultadoPagamentoListener(PedidoRepository repository, EstoqueLojaRepository estoque, ConsumoInsumos consumo, JsonMapper json) {
         this.repository = repository;
+        this.consumo = consumo;
         this.estoque = estoque;
         this.json = json;
     }
@@ -39,6 +41,7 @@ public class ResultadoPagamentoListener {
                     // Só quem concluiu devolve: resultado repetido cai no "else" e não repõe de novo.
                     // Pedido que o gerente já cancelou também não repõe: o cancelamento já devolveu.
                     pedido.getItens().forEach(i -> estoque.repor(pedido.getLojaId(), i.getProdutoId(), i.getQuantidade()));
+                    consumo.devolver(pedido); // recusado nunca foi preparado: os insumos voltam
                 }
                 log.info("Pedido {} agora está {}", pedido.getId(), pedido.getStatus());
             } else {

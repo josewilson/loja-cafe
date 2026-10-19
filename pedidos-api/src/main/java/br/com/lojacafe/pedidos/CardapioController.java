@@ -14,7 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 public class CardapioController {
 
-    public record OpcaoTamanho(Tamanho codigo, String nome, BigDecimal ajuste) {}
+    public record OpcaoTamanho(Tamanho codigo, String nome, BigDecimal ajuste, BigDecimal fatorInsumo) {}
     public record OpcaoExtra(Extra codigo, String nome, BigDecimal preco) {}
     public record OpcaoPagamento(FormaPagamento codigo, String nome, int parcelasMax) {}
     public record Opcoes(List<OpcaoTamanho> tamanhos, List<OpcaoExtra> extras, List<OpcaoPagamento> formasPagamento) {}
@@ -39,7 +39,7 @@ public class CardapioController {
     @GetMapping("/opcoes")
     public Opcoes opcoes() {
         return new Opcoes(
-                Arrays.stream(Tamanho.values()).map(t -> new OpcaoTamanho(t, t.getNome(), t.getAjuste())).toList(),
+                Arrays.stream(Tamanho.values()).map(t -> new OpcaoTamanho(t, t.getNome(), t.getAjuste(), t.getFatorInsumo())).toList(),
                 Arrays.stream(Extra.values()).map(e -> new OpcaoExtra(e, e.getNome(), e.getPreco())).toList(),
                 Arrays.stream(FormaPagamento.values()).map(f -> new OpcaoPagamento(f, f.getNome(), f.getParcelasMax())).toList());
     }
