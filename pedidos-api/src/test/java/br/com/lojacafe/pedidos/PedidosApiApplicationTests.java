@@ -21,7 +21,13 @@ import org.springframework.test.web.servlet.ResultActions;
 @SpringBootTest(properties = {
         "spring.kafka.admin.auto-create=false",
         "spring.kafka.listener.auto-startup=false",
-        "spring.datasource.url=jdbc:h2:mem:teste"
+        "spring.datasource.url=jdbc:h2:mem:teste",
+        // Nos testes o Hibernate cria as tabelas no H2 e o cardápio vem da própria V2 (as migrações são para o Postgres).
+        "spring.flyway.enabled=false",
+        "spring.jpa.hibernate.ddl-auto=create-drop",
+        "spring.jpa.defer-datasource-initialization=true",
+        "spring.sql.init.mode=always",
+        "spring.sql.init.data-locations=classpath:db/migration/V2__cardapio_inicial.sql"
 })
 @AutoConfigureMockMvc
 class PedidosApiApplicationTests {

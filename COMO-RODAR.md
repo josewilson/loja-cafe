@@ -36,8 +36,9 @@ cd pedidos-api
 ./mvnw spring-boot:run
 ```
 Windows: `mvnw.cmd spring-boot:run`. Para começar do zero: com a API parada, apague as tabelas no DBeaver
-(ou `docker compose exec postgres psql -U loja -d loja_cafe -c "drop table item_pedido_extras, item_pedido, pedido, sessao, usuario, produto"`).
-O cardápio (4 produtos, 50 unidades de estoque cada) é recriado sozinho na próxima partida.
+(ou `docker compose exec postgres psql -U loja -d loja_cafe -c "drop table item_pedido_extras, item_pedido, pedido, sessao, usuario, produto, flyway_schema_history"`).
+O esquema e o cardápio (4 produtos, 50 unidades cada) são recriados pelas migrações do Flyway (`pedidos-api/src/main/resources/db/migration`) na próxima partida.
+Mudou o banco? Crie um arquivo novo `V4__descricao.sql` nessa pasta; nunca edite uma migração já aplicada.
 
 **Banco criado antes do login e dos vários itens por pedido?** Suba a nova API uma vez e rode, uma única vez,
 `docker exec -i loja-cafe-postgres-1 psql -U loja loja_cafe < infra/migracao-v2.sql`: os pedidos antigos viram itens da conta "legado".
