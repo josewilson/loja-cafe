@@ -170,8 +170,7 @@ export default function Loja({ nome, aoSair }) {
         )}
 
         <form className="layout" onSubmit={enviar}>
-          <div className="coluna">
-            <section className="cartao">
+            <section className="cartao cardapio">
               <h2><span className="passo">1</span> Escolha sua pedida</h2>
               {produtos.length === 0 && !catalogoErro && (
                 <div className="grade-produtos" aria-hidden="true">
@@ -263,6 +262,37 @@ export default function Loja({ nome, aoSair }) {
                   </button>
                 )}
               </div>
+
+              <div className="itens-pedido">
+                <h3>
+                  Itens do pedido ({carrinho.length})
+                  {carrinho.length > 0 && (
+                    <button type="button" className="link" onClick={() => setCarrinho([])}>Limpar tudo</button>
+                  )}
+                </h3>
+                {linhas.length === 0 && <p className="vazio">Nenhum item ainda. Escolha acima e clique em “Adicionar ao pedido”.</p>}
+                <ul className="carrinho">
+                  {linhas.map((l, i) => (
+                    <li key={i}>
+                      <span className="emoji" aria-hidden="true">{l.produto?.emoji}</span>
+                      <div>
+                        <strong>{l.quantidade}× {l.produto?.nome}</strong>
+                        <small>
+                          {opcoes.tamanhos.find((t) => t.codigo === l.tamanho)?.nome}
+                          {l.extras.length > 0 && ` · ${opcoes.extras.filter((x) => l.extras.includes(x.codigo)).map((x) => x.nome).join(', ')}`}
+                        </small>
+                      </div>
+                      <span className="valor-item">{reais(l.valor)}</span>
+                      <button
+                        type="button"
+                        className="remover"
+                        aria-label={`Remover ${l.quantidade}× ${l.produto?.nome} do pedido`}
+                        onClick={() => setCarrinho((atual) => atual.filter((_, j) => j !== i))}
+                      >Remover</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </section>
 
             <section className="cartao">
@@ -310,37 +340,16 @@ export default function Loja({ nome, aoSair }) {
                 <small className="contador">{observacao.length}/140</small>
               </label>
             </section>
-          </div>
 
           <aside className="resumo cartao" aria-label="Resumo do pedido">
             <h2>Seu pedido</h2>
             {linhas.length > 0 ? (
               <>
-                <ul className="carrinho">
-                  {linhas.map((l, i) => (
-                    <li key={i}>
-                      <span className="emoji" aria-hidden="true">{l.produto?.emoji}</span>
-                      <div>
-                        <strong>{l.quantidade}× {l.produto?.nome}</strong>
-                        <small>
-                          {opcoes.tamanhos.find((t) => t.codigo === l.tamanho)?.nome}
-                          {l.extras.length > 0 && ` · ${opcoes.extras.filter((x) => l.extras.includes(x.codigo)).map((x) => x.nome).join(', ')}`}
-                        </small>
-                      </div>
-                      <span className="valor-item">{reais(l.valor)}</span>
-                      <button
-                        type="button"
-                        className="remover"
-                        aria-label={`Remover ${l.produto?.nome}`}
-                        onClick={() => setCarrinho((atual) => atual.filter((_, j) => j !== i))}
-                      >×</button>
-                    </li>
-                  ))}
-                </ul>
-                {observacao.trim() && <small className="obs">“{observacao.trim()}”</small>}
                 <dl className="contas">
+                  <div><dt>Itens</dt><dd>{linhas.reduce((soma, l) => soma + l.quantidade, 0)}</dd></div>
                   <div className="total" aria-live="polite"><dt>Total</dt><dd>{reais(total)}</dd></div>
                 </dl>
+                {observacao.trim() && <small className="obs">“{observacao.trim()}”</small>}
               </>
             ) : (
               <p className="vazio">Monte o item e clique em “Adicionar ao pedido”.</p>
