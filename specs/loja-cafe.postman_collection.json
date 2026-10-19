@@ -311,6 +311,66 @@
       }
     },
     {
+      "name": "GET /relatorios/vendas?data=2026-10-17 (GERENTE; ADMIN usa lojaId=)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/relatorios/vendas"
+      }
+    },
+    {
+      "name": "GET /caixa/resumo (turno aberto)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/caixa/resumo"
+      }
+    },
+    {
+      "name": "POST /caixa/fechamentos (GERENTE fecha o turno)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/caixa/fechamentos",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"dinheiroContado\": 25.00,\n  \"observacao\": \"troco ok\"\n}"
+        }
+      }
+    },
+    {
+      "name": "GET /caixa/fechamentos?limite=20 (histórico)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/caixa/fechamentos?limite=20"
+      }
+    },
+    {
       "name": "GET /auditoria (ADMIN ou GERENTE)",
       "request": {
         "method": "GET",

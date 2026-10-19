@@ -260,3 +260,39 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
 .status.PRONTO { background: var(--ok-fundo); color: var(--ok); }
 @media (prefers-color-scheme: dark) { .status.PREPARANDO { background: #1d2a47; color: #aac4ff; } }
 @media (max-width: 860px) { .quadro { grid-template-columns: 1fr; } }
+
+/* Painel do gerente */
+.sub-abas { display: flex; gap: 6px; padding: 4px; border-radius: 99px; background: var(--fundo-2); width: fit-content; max-width: 100%; overflow-x: auto; }
+.cartao h3 { font-size: .95rem; margin: 0 0 8px; color: var(--suave); }
+.cartao h2 input[type='date'] { width: auto; padding: 8px 12px; font-weight: 400; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.kpi { display: grid; gap: 4px; padding: 14px 16px; border-radius: 14px; background: var(--fundo-2); }
+.kpi strong { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.duas-colunas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.formas, .ranking, .equipe { list-style: none; padding: 0; display: grid; gap: 10px; }
+.formas li { display: grid; grid-template-columns: minmax(110px, 1fr) 2fr auto; gap: 12px; align-items: center; }
+.barra { display: block; height: 10px; border-radius: 99px; background: var(--fundo-2); overflow: hidden; }
+.barra i { display: block; height: 100%; background: var(--destaque); border-radius: 99px; }
+.ranking { counter-reset: posicao; }
+.ranking li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; }
+.ranking li::before { counter-increment: posicao; content: counter(posicao) 'º'; font-weight: 800; color: var(--destaque); margin-right: 8px; grid-column: 1; grid-row: 1; justify-self: start; }
+.ranking li span { grid-column: 1; grid-row: 1; margin-left: 30px; }
+.ranking li small { grid-column: 2; } .ranking li strong { grid-column: 3; }
+.fechar { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--borda); }
+.fechar .campo { flex: 1; min-width: 180px; }
+.fechar .botao { white-space: nowrap; }
+.diferenca { margin-top: 10px; padding: 8px 12px; border-radius: 10px; font-weight: 600; }
+.diferenca.ok { background: var(--ok-fundo); color: var(--ok); }
+.diferenca.erro { background: var(--aviso-fundo); color: var(--aviso); }
+.nota.aviso { background: var(--aviso-fundo); color: var(--aviso); padding: 8px 12px; border-radius: 10px; margin-top: 12px; }
+.rolagem { overflow-x: auto; }
+.tabela { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tabela th, .tabela td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--borda); white-space: nowrap; }
+.tabela th { font-size: .8rem; color: var(--suave); font-weight: 600; }
+.tabela input { width: 110px; padding: 8px 10px; }
+.neg { color: var(--perigo); font-weight: 700; }
+.equipe li { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 14px; border: 1px solid var(--borda); border-radius: 12px; }
+.equipe li.inativo { opacity: .55; }
+.equipe li > span:first-child { display: grid; gap: 2px; margin-right: auto; }
+.nova-conta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; align-items: end; }
+@media (max-width: 860px) { .duas-colunas { grid-template-columns: 1fr; } .formas li { grid-template-columns: 1fr auto; } .formas .barra { grid-column: 1 / -1; grid-row: 2; } }

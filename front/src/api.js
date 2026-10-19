@@ -90,3 +90,15 @@ const alterar = (caminho, corpo) =>
 export const listarCozinha = () => pedir('/cozinha')
 export const mudarPreparo = (id, preparo) => alterar(`/pedidos/${id}/preparo`, { preparo })
 export const cancelarPedido = (id, motivo) => alterar(`/pedidos/${id}/cancelar`, motivo ? { motivo } : {})
+
+// Painel do gerente
+export const relatorioVendas = (data) => pedir(`/relatorios/vendas${data ? `?data=${data}` : ''}`)
+export const caixaResumo = () => pedir('/caixa/resumo')
+export const fecharCaixa = (dinheiroContado, observacao) =>
+  enviar('/caixa/fechamentos', { dinheiroContado, observacao: observacao || undefined })
+export const listarFechamentos = (limite = 20) => pedir(`/caixa/fechamentos?limite=${limite}`)
+export const listarUsuarios = () => pedir('/usuarios')
+export const criarUsuario = (usuario) => enviar('/usuarios', usuario)
+export const definirAtivo = (id, ativo) => alterar(`/usuarios/${id}/ativo`, { ativo })
+export const ajustarEstoque = (lojaId, produtoId, quantidade) =>
+  alterar(`/lojas/${lojaId}/estoque/${produtoId}`, { quantidade })

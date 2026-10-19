@@ -103,14 +103,18 @@ Contrato completo em [`specs/api.md`](specs/api.md).
 | `GET` | `/auditoria` 🔒 admin, gerente | Quem fez o quê e quando |
 | `GET` | `/cozinha` 🔒 | A fila da loja: pedidos pagos ainda não retirados, do mais antigo ao mais novo |
 | `PUT` | `/pedidos/{id}/preparo` 🔒 cozinha, atendente, gerente | Avança o pedido: `PREPARANDO` → `PRONTO` (cozinha) → `RETIRADO` (balcão) |
-| `PUT` | `/pedidos/{id}/cancelar` 🔒 gerente | Cancela até ficar `PRONTO` e devolve o estoque |
+| `PUT` | `/pedidos/{id}/cancelar` 🔒 gerente | Cancela até ficar `PRONTO` (e antes de entrar num fechamento de caixa) e devolve o estoque |
+| `GET` | `/relatorios/vendas?data=` 🔒 admin, gerente | Vendas do dia: total, ticket médio, por forma de pagamento, mais vendidos, recusados e cancelados |
+| `GET` | `/caixa/resumo` 🔒 admin, gerente | O turno aberto: o que foi vendido desde o último fechamento |
+| `POST` | `/caixa/fechamentos` 🔒 gerente | Fecha o turno com o dinheiro contado e registra a diferença |
+| `GET` | `/caixa/fechamentos` 🔒 admin, gerente | Histórico de fechamentos |
 
 🔒 = exige `Authorization: Bearer <token>` (sem ele, `401`; papel sem permissão ou outra loja, `403`).
 
 | Papel | Pode |
 |---|---|
 | `ADMIN` | A rede toda: lojas, usuários, estoque, pedidos e auditoria de todas as lojas |
-| `GERENTE` | Na sua loja: tudo do balcão e da cozinha, criar/desativar atendente e cozinha, ajustar estoque, cancelar pedidos, ver auditoria |
+| `GERENTE` | Na sua loja: tudo do balcão e da cozinha, criar/desativar atendente e cozinha, ajustar estoque, cancelar pedidos, fechar o caixa, ver vendas e auditoria |
 | `ATENDENTE` | Na sua loja: lançar pedidos, ver os pedidos e marcar como retirado |
 | `COZINHA` | Na sua loja: ver os pedidos e tocar a fila de preparo |
 
@@ -187,7 +191,7 @@ O projeto foi construído em atos; cada branch guarda um marco:
 
 Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física, com retirada no balcão. O login é por e-mail e senha (BCrypt, token de 24 h no banco, limite de tentativas), sem recuperação de senha por e-mail e sem autenticação em dois fatores.
 O Postgres e o Kafka exigem senha (`infra/.env`) e só aceitam conexões locais (`127.0.0.1`); o painel do Kafka não tem login próprio. O Kafka usa SASL/PLAIN sem TLS, adequado a rede local ou privada, não à internet.
-Ainda não existem o painel do gerente, o estoque de insumos, a nota fiscal nem o pagamento real: veja o plano em fases abaixo.
+Ainda não existem a edição do cardápio, o estoque de insumos, a nota fiscal nem o pagamento real: veja o plano em fases abaixo.
 
 ## Rumo à produção (em fases)
 
@@ -196,8 +200,8 @@ Ainda não existem o painel do gerente, o estoque de insumos, a nota fiscal nem 
 | 1. Base profissional | Migrações com Flyway, segredos em `infra/.env`, Postgres e Kafka com senha, login com limite de tentativas, CI e teste de ponta a ponta | feita |
 | 2. Rede de lojas | Lojas, papéis (`ADMIN`, `GERENTE`, `ATENDENTE`, `COZINHA`), estoque por loja, auditoria | feita |
 | 3a. Cozinha | Fila de preparo, retirada e cancelamento de pedidos | feita |
-| 3b. Painel do gerente | Usuários, estoque, vendas do dia e fechamento de caixa | próxima |
-| 3c. Cardápio e insumos | Edição do cardápio da rede, ficha técnica e estoque de insumos | pendente |
+| 3b. Painel do gerente | Vendas do dia, fechamento de caixa por turno, equipe e estoque (aba "Gerência") | feita |
+| 3c. Cardápio e insumos | Edição do cardápio da rede, ficha técnica e estoque de insumos | próxima |
 | 4. Hospedagem | Docker, HTTPS, backup, monitoramento | pendente |
 | 5. Pix real | Provedor de pagamento, webhook assinado | pendente |
 | 6. Nota fiscal | Emissor fiscal (confirmar com o contador) | pendente |

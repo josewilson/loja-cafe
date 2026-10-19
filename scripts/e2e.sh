@@ -123,4 +123,24 @@ aguardar_status "$ATENDENTE" "$ID_CANC" PAGO
   || falhar "cancelar de novo deveria dar 409"
 ok "cancelado, estoque de volta a 41, segundo cancelamento 409"
 
+echo "11. Vendas do dia e caixa: só contam os pedidos pagos e não cancelados"
+V=$(chamar "$GERENTE" GET /relatorios/vendas)
+[ "$(echo "$V" | json "d.pedidos")" = "1" ] || falhar "vendas do dia: esperava 1 pedido (o Pix); recusado e cancelado não contam"
+[ "$(echo "$V" | json "d.total")" = "135" ] || falhar "vendas do dia: total esperado 135"
+[ "$(echo "$V" | json "d.cancelados + d.recusados")" = "2" ] || falhar "vendas do dia: 1 cancelado + 1 recusado"
+[ "$(chamar "$GERENTE" GET /caixa/resumo | json "d.pedidos")" = "1" ] || falhar "o turno aberto deveria ter 1 pedido"
+[ "$(codigo "$ATENDENTE" GET /caixa/resumo)" = "403" ] || falhar "atendente não vê o caixa (403)"
+ok "1 venda de R\$ 135,00 (o recusado e o cancelado ficaram de fora)"
+
+echo "12. Fechar o caixa: o turno zera e pedido já contado não cancela mais"
+ID_FECHADO=$(pedir "$GERENTE" PIX)
+aguardar_status "$GERENTE" "$ID_FECHADO" PAGO
+FECH=$(chamar "$GERENTE" POST /caixa/fechamentos '{"dinheiroContado":0,"observacao":"e2e"}')
+[ "$(echo "$FECH" | json "d.pedidos")" = "2" ] || falhar "o fechamento deveria contar 2 pedidos"
+[ "$(echo "$FECH" | json "d.diferenca")" = "0" ] || falhar "sem dinheiro vendido a diferença deveria ser 0"
+[ "$(chamar "$GERENTE" GET /caixa/resumo | json "d.pedidos")" = "0" ] || falhar "depois de fechar o turno deveria estar vazio"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/pedidos/$ID_FECHADO/cancelar" -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' -d '{}')" = "409" ] \
+  || falhar "pedido já contado no fechamento não deveria cancelar (409)"
+ok "fechado: 2 pedidos, turno zerado, cancelamento do pedido contado barrado"
+
 echo "TUDO CERTO"
