@@ -12,9 +12,9 @@ O cardápio e os preços são da rede (iguais em todas as lojas); o estoque é d
 | Papel | Pode |
 |---|---|
 | `ADMIN` | A rede toda: criar lojas e usuários de qualquer loja, ajustar estoque, ver pedidos e auditoria de todas as lojas |
-| `GERENTE` | Na sua loja: lançar pedidos, criar/desativar `ATENDENTE` e `COZINHA`, ajustar estoque, ver auditoria |
-| `ATENDENTE` | Na sua loja: lançar pedidos e ver os pedidos |
-| `COZINHA` | Na sua loja: ver os pedidos (a tela da cozinha vem depois) |
+| `GERENTE` | Na sua loja: lançar pedidos, criar/desativar `ATENDENTE` e `COZINHA`, ajustar estoque, ver auditoria, tocar a fila de preparo e **cancelar pedidos** |
+| `ATENDENTE` | Na sua loja: lançar pedidos, ver os pedidos e marcar `RETIRADO` quando o cliente leva |
+| `COZINHA` | Na sua loja: ver os pedidos, tocar a fila de preparo (`PREPARANDO`, `PRONTO`) |
 
 Sem token: `401`. Papel sem permissão, ou dado de outra loja: `403`. Conta desativada: `401`.
 O primeiro `ADMIN` é criado na primeira partida da API a partir de `ADMIN_EMAIL` e `ADMIN_PASSWORD` (`infra/.env`).
@@ -88,7 +88,8 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 ```json
 [ { "id": 9, "quando": "2026-10-17T16:05:00Z", "usuarioId": 3, "lojaId": 1, "acao": "PEDIDO_CRIADO", "entidade": "Pedido", "entidadeId": "12", "detalhe": "valor 35.00" } ]
 ```
-Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`.
+Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
+`PREPARO_ALTERADO`, `PEDIDO_CANCELADO`.
 
 ## Cardápio e pedidos (exigem token)
 
@@ -121,11 +122,38 @@ Pedidos **da loja do usuário**, **mais novo primeiro** (padrão 100, de 1 a 200
   { "id": 12, "lojaId": 1, "cliente": "Ana", "atendente": "Bia", "formaPagamento": "CREDITO", "parcelas": 2, "observacao": "sem açúcar",
     "itens": [ { "produtoId": 2, "item": "Cappuccino", "quantidade": 2, "tamanho": "GRANDE",
                  "extras": ["CHANTILLY", "CANELA"], "precoUnitario": 17.50, "valor": 35.00 } ],
-    "valor": 35.00, "status": "AGUARDANDO_PAGAMENTO", "motivo": null, "processadoPor": null,
+    "valor": 35.00, "status": "AGUARDANDO_PAGAMENTO", "preparo": "NA_FILA", "motivo": null, "processadoPor": null,
     "criadoEm": "2026-10-17T16:05:00Z" }
 ]
 ```
 `item` é o nome do produto no momento do pedido.
+
+## Cozinha, retirada e cancelamento
+`preparo` é o andamento na loja e é **independente** do `status` (que é só o pagamento). Todo pedido nasce `NA_FILA`.
+
+| `preparo` | Quando |
+|---|---|
+| `NA_FILA` | Esperando a cozinha |
+| `PREPARANDO` | A cozinha começou |
+| `PRONTO` | Pode retirar no balcão |
+| `RETIRADO` | O cliente levou (fim) |
+| `CANCELADO` | Cancelado pelo gerente (fim) |
+
+### GET /cozinha?limite=N  (todos os papéis)
+A fila da loja: só pedidos **`PAGO`** com `preparo` em `NA_FILA`, `PREPARANDO` ou `PRONTO`, do **mais antigo para o mais novo**
+(padrão 100, de 1 a 200). O `ADMIN` informa `?lojaId=`. Mesmo formato de `GET /pedidos`.
+
+### PUT /pedidos/{id}/preparo  (`COZINHA`, `GERENTE`, `ATENDENTE`)
+Corpo: `{ "preparo": "PREPARANDO" }`. Só avança um passo por vez, e só em pedido `PAGO` da própria loja:
+`NA_FILA → PREPARANDO → PRONTO → RETIRADO`.
+- `PREPARANDO` e `PRONTO`: `COZINHA` ou `GERENTE`. `RETIRADO`: `ATENDENTE` ou `GERENTE`. Outro papel: `403`.
+- Pedido ainda não pago, salto de etapa ou estado que já mudou: `409`. Pedido de outra loja: `403`. Inexistente: `404`.
+- `200` com o pedido. Grava `PREPARO_ALTERADO` na auditoria.
+
+### PUT /pedidos/{id}/cancelar  (`GERENTE`)
+Corpo opcional: `{ "motivo": "cliente desistiu" }` (até 140, vai para a auditoria). Só cancela enquanto o `preparo` é `NA_FILA` ou `PREPARANDO`
+e o pagamento não foi `RECUSADO`. Devolve o estoque da loja (uma única vez) e grava `PEDIDO_CANCELADO`.
+Já `PRONTO`, `RETIRADO`, `CANCELADO` ou `RECUSADO`: `409`. Outra loja: `403`. `200` com o pedido.
 
 ## Status do pedido
 | Status | Quando |
