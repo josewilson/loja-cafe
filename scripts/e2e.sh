@@ -160,4 +160,29 @@ chamar "$ADMIN" PUT "/cardapio/$PROD" "{\"nome\":\"E2E Brownie $SUFIXO\",\"emoji
   || falhar "pedido com produto desativado deveria dar 400"
 ok "criado (id $PROD), vendido a 11,50 e depois a 12,00, desativado: some do balcão e não aceita pedido"
 
+echo "14. Insumos: a ficha técnica baixa na venda, a falta não bloqueia, a recusa devolve"
+INS=$(chamar "$ADMIN" POST /insumos "{\"nome\":\"E2E Leite $SUFIXO\",\"unidade\":\"ML\"}" | json "d.id")
+PROD2=$(chamar "$ADMIN" POST /cardapio "{\"nome\":\"E2E Latte $SUFIXO\",\"emoji\":\"E2E\",\"preco\":11.50}" | json "d.id")
+chamar "$ADMIN" PUT "/lojas/$LOJA_A/estoque/$PROD2" '{"quantidade":50}' > /dev/null
+chamar "$ADMIN" PUT "/fichas/produtos/$PROD2" "{\"itens\":[{\"insumoId\":$INS,\"quantidade\":150}]}" > /dev/null
+[ "$(codigo "$ATENDENTE" GET /insumos)" = "403" ] || falhar "atendente não vê insumos (403)"
+[ "$(codigo "$GERENTE" PUT /insumos/$INS)" != "200" ] || falhar "gerente não edita o catálogo de insumos"
+chamar "$GERENTE" PUT "/lojas/$LOJA_A/insumos/$INS" '{"quantidade":1000,"minimo":200}' > /dev/null
+leite() { chamar "$GERENTE" GET /insumos | json "d.find(i => i.id === $INS).quantidade"; }
+vender_latte() { # vender_latte <forma> <quantidade> <tamanho>: imprime o id do pedido
+  chamar "$ATENDENTE" POST /pedidos "{\"formaPagamento\":\"$1\",\"itens\":[{\"produtoId\":$PROD2,\"quantidade\":$2,\"tamanho\":\"$3\"}]}" | json "d.id"
+}
+vender_latte PIX 2 GRANDE > /dev/null
+[ "$(leite)" = "550" ] || falhar "2 lattes grandes gastam 150 × 2 × 1,5 = 450: sobraria 550 (veio '$(leite)')"
+vender_latte PIX 3 GRANDE > /dev/null # gasta 675 e só havia 550: a venda NÃO pode ser bloqueada
+[ "$(leite)" = "-125" ] || falhar "o estoque de insumo deveria ficar negativo (-125), veio '$(leite)'"
+[ "$(chamar "$GERENTE" GET /insumos/alertas | json "d.filter(a => a.insumoId === $INS).map(a => a.situacao).join()")" = "ACABOU" ] \
+  || falhar "o insumo negativo deveria aparecer como ACABOU nos alertas"
+ID_REC=$(vender_latte DEBITO 10 MEDIO) # R$ 115,00 no débito: acima do limite, será RECUSADO
+aguardar_status "$GERENTE" "$ID_REC" RECUSADO
+[ "$(leite)" = "-125" ] || falhar "o pedido recusado deveria devolver os insumos (-125), veio '$(leite)'"
+chamar "$ADMIN" PUT "/insumos/$INS" "{\"nome\":\"E2E Leite $SUFIXO\",\"ativo\":false}" > /dev/null
+chamar "$ADMIN" PUT "/cardapio/$PROD2" "{\"nome\":\"E2E Latte $SUFIXO\",\"emoji\":\"E2E\",\"preco\":11.50,\"ativo\":false}" > /dev/null
+ok "1000 -> 550 -> -125 (venda não bloqueada, alerta ACABOU) e a recusa devolveu os 1500 do pedido de 10"
+
 echo "TUDO CERTO"

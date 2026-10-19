@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import {
-  ajustarEstoque, caixaResumo, criarUsuario, definirAtivo, fecharCaixa, listarFechamentos,
+  ajustarEstoque, alertasInsumos, caixaResumo, contarInsumo, listarInsumos, criarUsuario, definirAtivo, fecharCaixa, listarFechamentos,
   listarProdutos, listarUsuarios, relatorioVendas,
 } from './api'
 import Topo from './Topo'
@@ -15,6 +15,7 @@ const SECOES = [
   { id: 'caixa', titulo: 'Caixa' },
   { id: 'equipe', titulo: 'Equipe' },
   { id: 'estoque', titulo: 'Estoque' },
+  { id: 'insumos', titulo: 'Insumos' },
 ]
 // Data de hoje no fuso do navegador, no formato do <input type="date">.
 const hoje = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)
@@ -281,22 +282,100 @@ function Estoque({ sessao, aoSair }) {
   )
 }
 
+const UNIDADE = { G: 'g', ML: 'ml', UN: 'un' }
+const numero = (n) => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 3 })
+
+// Insumos da loja: contagem do estoque, mínimo do alerta e o que está acabando.
+function Insumos({ sessao, aoSair }) {
+  const catalogo = useDados(listarInsumos, aoSair)
+  const alertas = useDados(alertasInsumos, aoSair)
+  const [novo, setNovo] = useState({}) // insumoId -> { quantidade, minimo } digitados
+  const [salvando, setSalvando] = useState(null)
+  const digitado = (id, campo) => novo[id]?.[campo] ?? ''
+  const mudar = (id, campo) => (e) => setNovo({ ...novo, [id]: { ...novo[id], [campo]: e.target.value } })
+
+  async function salvar(insumo) {
+    setSalvando(insumo.id)
+    try {
+      await contarInsumo(sessao.lojaId, insumo.id, Number(digitado(insumo.id, 'quantidade')), digitado(insumo.id, 'minimo'))
+      setNovo((atual) => ({ ...atual, [insumo.id]: undefined }))
+      catalogo.setErro(null)
+      catalogo.recarregar()
+      alertas.recarregar()
+    } catch (falha) {
+      if (falha.status === 401) return aoSair()
+      catalogo.setErro(falha)
+    } finally {
+      setSalvando(null)
+    }
+  }
+
+  const lista = (catalogo.dados ?? []).filter((i) => i.ativo)
+  return (
+    <>
+      <section className="cartao">
+        <h2>Alertas de insumos <small>{alertas.dados ? `${alertas.dados.length} item(ns)` : ''}</small></h2>
+        <Erro erro={alertas.erro} />
+        {alertas.dados?.length === 0 && <p className="vazio">Tudo acima do mínimo. ✓</p>}
+        <ul className="alertas">
+          {(alertas.dados ?? []).map((a) => (
+            <li key={a.insumoId} className={a.situacao === 'ACABOU' ? 'acabou' : 'baixo'}>
+              <strong>{a.nome}</strong>
+              <span>{a.situacao === 'ACABOU' ? 'Acabou' : 'Baixo'}: {numero(a.quantidade)} {UNIDADE[a.unidade]} (mínimo {numero(a.minimo)})</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="cartao">
+        <h2>Estoque de insumos da loja</h2>
+        <Erro erro={catalogo.erro} />
+        {lista.length === 0 && <p className="vazio">Nenhum insumo cadastrado. O administrador cadastra os insumos e as fichas técnicas.</p>}
+        {lista.length > 0 && (
+          <div className="rolagem">
+            <table className="tabela">
+              <thead><tr><th>Insumo</th><th>Em estoque</th><th>Mínimo</th><th>Nova contagem</th><th>Novo mínimo</th><th /></tr></thead>
+              <tbody>
+                {lista.map((i) => (
+                  <tr key={i.id}>
+                    <td>{i.nome}</td>
+                    <td className={i.abaixoDoMinimo ? 'neg' : ''}>{numero(i.quantidade)} {UNIDADE[i.unidade]}</td>
+                    <td>{numero(i.minimo)} {UNIDADE[i.unidade]}</td>
+                    <td><input type="number" min="0" step="0.001" aria-label={`Nova contagem de ${i.nome}`} value={digitado(i.id, 'quantidade')} onChange={mudar(i.id, 'quantidade')} /></td>
+                    <td><input type="number" min="0" step="0.001" aria-label={`Novo mínimo de ${i.nome}`} value={digitado(i.id, 'minimo')} onChange={mudar(i.id, 'minimo')} /></td>
+                    <td><button type="button" className="link" disabled={salvando === i.id || digitado(i.id, 'quantidade') === ''} onClick={() => salvar(i)}>Salvar</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="nota">A venda baixa os insumos sozinha, pela ficha técnica. A contagem sobrescreve o valor do sistema.</p>
+      </section>
+    </>
+  )
+}
+
 // Painel do gerente: vendas do dia, caixa por turno, equipe e estoque da loja dele.
 export default function Gerencia({ sessao, aoSair, topo }) {
   const [secao, setSecao] = useState('vendas')
+  const alertas = useDados(alertasInsumos, aoSair) // só para mostrar quantos insumos estão acabando na aba
   return (
     <>
       <Topo {...topo} offline={false} />
       <main>
         <nav className="sub-abas" aria-label="Seções da gerência">
           {SECOES.map((s) => (
-            <button key={s.id} type="button" className={s.id === secao ? 'aba ativa' : 'aba'} onClick={() => setSecao(s.id)}>{s.titulo}</button>
+            <button key={s.id} type="button" className={s.id === secao ? 'aba ativa' : 'aba'} onClick={() => setSecao(s.id)}>
+              {s.titulo}{s.id === 'insumos' && alertas.dados?.length > 0 ? ` (${alertas.dados.length})` : ''}
+            </button>
           ))}
         </nav>
         {secao === 'vendas' && <Vendas aoSair={aoSair} />}
         {secao === 'caixa' && <Caixa aoSair={aoSair} />}
         {secao === 'equipe' && <Equipe aoSair={aoSair} />}
         {secao === 'estoque' && <Estoque sessao={sessao} aoSair={aoSair} />}
+        {secao === 'insumos' && <Insumos sessao={sessao} aoSair={aoSair} />}
       </main>
     </>
   )

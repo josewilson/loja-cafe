@@ -107,3 +107,14 @@ export const criarUsuario = (usuario) => enviar('/usuarios', usuario)
 export const definirAtivo = (id, ativo) => alterar(`/usuarios/${id}/ativo`, { ativo })
 export const ajustarEstoque = (lojaId, produtoId, quantidade) =>
   alterar(`/lojas/${lojaId}/estoque/${produtoId}`, { quantidade })
+
+// Insumos e fichas técnicas
+export const listarInsumos = (lojaId) => pedir(`/insumos${lojaId ? `?lojaId=${lojaId}` : ''}`) // o ADMIN informa a loja
+export const alertasInsumos = () => pedir('/insumos/alertas')
+export const listarLojas = () => pedir('/lojas')
+export const criarInsumo = (insumo) => enviar('/insumos', insumo)
+export const alterarInsumo = (id, dados) => alterar(`/insumos/${id}`, dados)
+export const contarInsumo = (lojaId, insumoId, quantidade, minimo) =>
+  alterar(`/lojas/${lojaId}/insumos/${insumoId}`, minimo === '' || minimo == null ? { quantidade } : { quantidade, minimo })
+export const lerFicha = (tipo, id) => pedir(`/fichas/${tipo}/${id}`) // tipo: 'produtos' ou 'extras'
+export const salvarFicha = (tipo, id, itens) => alterar(`/fichas/${tipo}/${id}`, { itens })

@@ -96,6 +96,11 @@ Contrato completo em [`specs/api.md`](specs/api.md).
 | `GET` | `/produtos` 🔒 | Cardápio da rede (só itens ativos) com o **estoque da sua loja** |
 | `GET` `POST` | `/cardapio` 🔒 admin | Lista todos os produtos (inclusive desativados) e cria produto novo (nasce com estoque 0 nas lojas) |
 | `PUT` | `/cardapio/{id}` 🔒 admin | Altera nome, descrição, emoji, preço e liga/desliga o item; preço novo vale só para pedidos novos |
+| `GET` `POST` | `/insumos` 🔒 admin, gerente | Catálogo de insumos com o estoque da loja; o ADMIN cadastra (nome, unidade `G`/`ML`/`UN`) |
+| `PUT` | `/insumos/{id}` 🔒 admin | Renomeia e liga/desliga o insumo (a unidade não muda) |
+| `PUT` | `/lojas/{id}/insumos/{insumoId}` 🔒 admin, gerente | Contagem do estoque do insumo e mínimo do alerta (o gerente, só na própria loja) |
+| `GET` | `/insumos/alertas` 🔒 admin, gerente | O que está abaixo do mínimo; os que acabaram primeiro |
+| `GET` `PUT` | `/fichas/produtos/{id}` · `/fichas/extras/{codigo}` 🔒 | Ficha técnica (quanto de cada insumo gasta 1 unidade, tamanho Médio); só o admin grava |
 | `POST` | `/pedidos` 🔒 atendente, gerente | Lança um pedido com 1 a 10 itens. `201`, ou `400` dizendo qual campo falhou ou qual produto está sem estoque |
 | `GET` | `/pedidos?limite=N` 🔒 | Os pedidos **da sua loja**, do mais novo ao mais antigo (padrão 100, máximo 200). O ADMIN vê todas |
 | `GET` `POST` | `/usuarios` 🔒 admin, gerente | Lista e cria contas da equipe (o gerente só cria atendente e cozinha, na própria loja) |
@@ -193,7 +198,7 @@ O projeto foi construído em atos; cada branch guarda um marco:
 
 Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física, com retirada no balcão. O login é por e-mail e senha (BCrypt, token de 24 h no banco, limite de tentativas), sem recuperação de senha por e-mail e sem autenticação em dois fatores.
 O Postgres e o Kafka exigem senha (`infra/.env`) e só aceitam conexões locais (`127.0.0.1`); o painel do Kafka não tem login próprio. O Kafka usa SASL/PLAIN sem TLS, adequado a rede local ou privada, não à internet.
-Ainda não existem o estoque de insumos, a nota fiscal nem o pagamento real: veja o plano em fases abaixo.
+Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plano em fases abaixo.
 
 ## Rumo à produção (em fases)
 
@@ -204,8 +209,8 @@ Ainda não existem o estoque de insumos, a nota fiscal nem o pagamento real: vej
 | 3a. Cozinha | Fila de preparo, retirada e cancelamento de pedidos | feita |
 | 3b. Painel do gerente | Vendas do dia, fechamento de caixa por turno, equipe e estoque (aba "Gerência") | feita |
 | 3c-1. Cardápio editável | O ADMIN cria produtos, reajusta preços e liga/desliga itens (aba "Cardápio da rede") | feita |
-| 3c-2. Insumos | Ficha técnica, estoque de insumos por loja, baixa automática na venda e alertas | próxima |
-| 4. Hospedagem | Docker, HTTPS, backup, monitoramento | pendente |
+| 3c-2. Insumos | Ficha técnica, estoque de insumos por loja, baixa automática na venda (sem bloquear), devolução na recusa e alertas | feita |
+| 4. Hospedagem | Docker, HTTPS, backup, monitoramento | próxima |
 | 5. Pix real | Provedor de pagamento, webhook assinado | pendente |
 | 6. Nota fiscal | Emissor fiscal (confirmar com o contador) | pendente |
 

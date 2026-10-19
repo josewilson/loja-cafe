@@ -4,11 +4,12 @@ import CardapioRede from './CardapioRede'
 import Cozinha from './Cozinha'
 import Entrar from './Entrar'
 import Gerencia from './Gerencia'
+import InsumosAdmin from './InsumosAdmin'
 import Loja from './Loja'
 
 // Quais telas cada papel enxerga (o servidor confere as permissões de novo em cada chamada).
 const ABAS = {
-  ADMIN: ['balcao', 'cardapio'],
+  ADMIN: ['balcao', 'cardapio', 'insumos'],
   GERENTE: ['balcao', 'cozinha', 'gerencia'],
   ATENDENTE: ['balcao', 'cozinha'],
   COZINHA: ['cozinha'],
@@ -37,6 +38,7 @@ export default function App() {
   const atual = abas.includes(visao) ? visao : abas[0]
   const topo = { sessao, aoSair, abas, visao: atual, aoMudarVisao: mudarVisao }
 
+  if (atual === 'insumos') return <InsumosAdmin aoSair={aoSair} topo={topo} />
   if (atual === 'cardapio') return <CardapioRede aoSair={aoSair} topo={topo} />
   if (atual === 'gerencia') return <Gerencia sessao={sessao} aoSair={aoSair} topo={topo} />
   if (atual === 'cozinha') return <Cozinha sessao={sessao} aoSair={aoSair} topo={topo} />

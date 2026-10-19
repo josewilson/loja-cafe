@@ -307,3 +307,19 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
 .item-cardapio .form-produto { grid-column: 1 / -1; }
 .item-cardapio .emoji { font-size: 1.6rem; }
 @media (max-width: 860px) { .item-cardapio { grid-template-columns: auto 1fr auto; } .form-produto .campo.largo { grid-column: span 1; } }
+
+/* Insumos e fichas técnicas */
+.alertas { list-style: none; padding: 0; display: grid; gap: 8px; }
+.alertas li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; }
+.alertas li.acabou { background: var(--perigo-fundo); color: var(--perigo); }
+.alertas li.baixo { background: var(--aviso-fundo); color: var(--aviso); }
+.seletor-loja { font-size: .85rem; font-weight: 400; color: var(--suave); }
+.seletor-loja select, .linha-ficha select, .nova-conta select, .campo select { padding: 8px 12px; border-radius: 10px; border: 1.5px solid var(--borda); background: transparent; }
+.ficha { display: grid; gap: 12px; margin-top: 16px; }
+.ficha h3 { margin: 0; }
+.linha-ficha { display: grid; grid-template-columns: minmax(0, 2fr) minmax(90px, 1fr) 3ch auto; gap: 10px; align-items: center; }
+.unidade { color: var(--suave); }
+.renomear { display: flex; gap: 10px; align-items: center; flex: 1; }
+.renomear input { max-width: 320px; }
+@media (max-width: 860px) { .linha-ficha { grid-template-columns: 1fr 1fr; } }
+.cartao .nova-conta + .equipe { margin-top: 18px; }

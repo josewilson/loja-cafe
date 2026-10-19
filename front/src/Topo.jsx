@@ -1,5 +1,5 @@
 const PAPEL = { ADMIN: 'Administrador', GERENTE: 'Gerente', ATENDENTE: 'Atendente', COZINHA: 'Cozinha' }
-const ROTULO_ABA = { balcao: 'Balcão', cozinha: 'Fila e retirada', gerencia: 'Gerência', cardapio: 'Cardápio da rede' }
+const ROTULO_ABA = { balcao: 'Balcão', cozinha: 'Fila e retirada', gerencia: 'Gerência', cardapio: 'Cardápio da rede', insumos: 'Insumos e fichas' }
 
 // Cabeçalho comum: marca, abas (conforme o papel), estado da API, quem está logado e o botão de sair.
 export default function Topo({ sessao, aoSair, abas, visao, aoMudarVisao, offline }) {

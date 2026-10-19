@@ -426,6 +426,150 @@
       }
     },
     {
+      "name": "GET /insumos (ADMIN/GERENTE: catálogo com estoque da loja; ADMIN usa ?lojaId=1)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/insumos"
+      }
+    },
+    {
+      "name": "POST /insumos (ADMIN)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/insumos",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Grão de café\",\n  \"unidade\": \"G\"\n}"
+        }
+      }
+    },
+    {
+      "name": "PUT /insumos/1 (ADMIN: renomear, ativar/desativar)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/insumos/1",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Grão de café especial\",\n  \"ativo\": true\n}"
+        }
+      }
+    },
+    {
+      "name": "PUT /lojas/1/insumos/1 (GERENTE da loja ou ADMIN: contagem e mínimo)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/lojas/1/insumos/1",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quantidade\": 5000,\n  \"minimo\": 1000\n}"
+        }
+      }
+    },
+    {
+      "name": "GET /insumos/alertas (o que está abaixo do mínimo)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/insumos/alertas"
+      }
+    },
+    {
+      "name": "GET /fichas/produtos/2",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/fichas/produtos/2"
+      }
+    },
+    {
+      "name": "PUT /fichas/produtos/2 (ADMIN: substitui a ficha, tamanho Médio)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/fichas/produtos/2",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"itens\": [\n    { \"insumoId\": 1, \"quantidade\": 18 },\n    { \"insumoId\": 2, \"quantidade\": 150 }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "PUT /fichas/extras/CHANTILLY (ADMIN)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/fichas/extras/CHANTILLY",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"itens\": [ { \"insumoId\": 3, \"quantidade\": 20 } ]\n}"
+        }
+      }
+    },
+    {
       "name": "GET /auditoria (ADMIN ou GERENTE)",
       "request": {
         "method": "GET",
