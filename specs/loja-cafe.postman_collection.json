@@ -1,0 +1,69 @@
+{
+  "info": {
+    "name": "Loja Café",
+    "description": "Chamadas da pedidos-api (8081) e do Pagamentos (5001). Contrato em specs/api.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8081" },
+    { "key": "pagamentosUrl", "value": "http://localhost:5001" }
+  ],
+  "item": [
+    {
+      "name": "GET /produtos (cardápio)",
+      "request": { "method": "GET", "url": "{{baseUrl}}/produtos" }
+    },
+    {
+      "name": "GET /opcoes (tamanhos e extras)",
+      "request": { "method": "GET", "url": "{{baseUrl}}/opcoes" }
+    },
+    {
+      "name": "POST /pedidos (válido)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/pedidos",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cliente\": \"Ana\",\n  \"produtoId\": 2,\n  \"quantidade\": 2,\n  \"tamanho\": \"GRANDE\",\n  \"extras\": [\"CHANTILLY\", \"CANELA\"],\n  \"observacao\": \"sem açúcar\"\n}"
+        }
+      }
+    },
+    {
+      "name": "POST /pedidos (acima de R$ 100: será RECUSADO)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/pedidos",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cliente\": \"Caio\",\n  \"produtoId\": 4,\n  \"quantidade\": 20,\n  \"tamanho\": \"GRANDE\"\n}"
+        }
+      }
+    },
+    {
+      "name": "POST /pedidos (inválido: espera 400)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/pedidos",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cliente\": \"\",\n  \"produtoId\": 99,\n  \"quantidade\": 0,\n  \"tamanho\": \"XG\"\n}"
+        }
+      }
+    },
+    {
+      "name": "GET /pedidos?limite=10",
+      "request": { "method": "GET", "url": "{{baseUrl}}/pedidos?limite=10" }
+    },
+    {
+      "name": "Pagamentos · GET /saude",
+      "request": { "method": "GET", "url": "{{pagamentosUrl}}/saude" }
+    },
+    {
+      "name": "Pagamentos · GET /pagamentos (decisões desta instância)",
+      "request": { "method": "GET", "url": "{{pagamentosUrl}}/pagamentos" }
+    }
+  ]
+}
