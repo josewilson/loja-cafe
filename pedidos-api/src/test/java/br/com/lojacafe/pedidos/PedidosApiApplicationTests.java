@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -1441,5 +1442,49 @@ class PedidosApiApplicationTests {
                 contains(allOf(containsString("0.000 -> 800"), containsString("mínimo 0.000 -> 200")))));
         // o catálogo e as fichas são da rede (sem loja): o gerente não os vê na auditoria
         GET(gerente, "/auditoria?limite=500").andExpect(jsonPath("$[?(@.acao=='INSUMO_CRIADO' || @.acao=='FICHA_ALTERADA')]", hasSize(0)));
+    }
+
+    // ---------- saúde da API (monitoramento e Docker) ----------
+
+    @MockitoSpyBean
+    Saude saude;
+
+    @Test
+    void saudeEPublicaEComTudoVivoDa200() throws Exception {
+        org.mockito.Mockito.doReturn(true).when(saude).kafkaVivo(); // nos testes não há broker de verdade
+        GET(null, "/saude").andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ok"))
+                .andExpect(jsonPath("$.banco").value("ok"))
+                .andExpect(jsonPath("$.kafka").value("ok"));
+    }
+
+    @Test
+    void saudeSemKafkaDa503ComOBancoOk() throws Exception {
+        org.mockito.Mockito.doReturn(false).when(saude).kafkaVivo();
+        GET(null, "/saude").andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value("falha"))
+                .andExpect(jsonPath("$.banco").value("ok"))
+                .andExpect(jsonPath("$.kafka").value("falha"));
+    }
+
+    @Test
+    void saudeSemBancoDa503() throws Exception {
+        org.mockito.Mockito.doReturn(false).when(saude).bancoVivo();
+        org.mockito.Mockito.doReturn(true).when(saude).kafkaVivo();
+        GET(null, "/saude").andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.banco").value("falha"))
+                .andExpect(jsonPath("$.kafka").value("ok"));
+    }
+
+    @Test
+    void oBancoRealDosTestesResponde() {
+        org.junit.jupiter.api.Assertions.assertTrue(saude.bancoVivo()); // consulta de verdade ao H2
+    }
+
+    @Test
+    void saudeNaoVazaDetalhesInternos() throws Exception {
+        org.mockito.Mockito.doReturn(false).when(saude).kafkaVivo();
+        String corpo = GET(null, "/saude").andReturn().getResponse().getContentAsString();
+        org.junit.jupiter.api.Assertions.assertFalse(corpo.contains("jdbc") || corpo.contains("localhost") || corpo.contains("Exception"), corpo);
     }
 }
