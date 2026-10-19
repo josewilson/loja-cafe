@@ -24,7 +24,7 @@ public class Pedido {
     private Integer parcelas;
     // BatchSize: a lista de pedidos busca os itens em lotes, não uma consulta por pedido.
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    @JoinColumn(name = "pedido_id")
+    @JoinColumn(name = "pedido_id", nullable = false) // NOT NULL no banco: o item já nasce ligado ao pedido
     @BatchSize(size = 100)
     private List<ItemPedido> itens = new ArrayList<>();
     private String observacao;
