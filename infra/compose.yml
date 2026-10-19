@@ -28,6 +28,21 @@ services:
       interval: 5s
       timeout: 15s
       retries: 30
+  # Banco de dados da pedidos-api. Porta 5433 no seu computador (a 5432 costuma estar ocupada).
+  # DBeaver/Insomnia: localhost:5433 · banco loja_cafe · usuário loja · senha loja (pode criar outros bancos).
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: loja_cafe
+      POSTGRES_USER: ${POSTGRES_USER:-loja}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-loja}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5433}:5432"]
+    volumes: ["dados-postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-loja} -d loja_cafe"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
   kafka-ui:
     image: ghcr.io/kafbat/kafka-ui:v1.3.0
     environment:
@@ -39,3 +54,4 @@ services:
         condition: service_healthy
 volumes:
   dados-kafka:
+  dados-postgres:
