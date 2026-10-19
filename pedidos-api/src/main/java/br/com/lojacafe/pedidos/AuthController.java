@@ -2,87 +2,73 @@ package br.com.lojacafe.pedidos;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotBlank;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-/** Cadastro e login (specs/api.md). Devolve um token aleatório; o banco guarda só o hash dele. */
+/** Login e logout (specs/api.md). Devolve um token aleatório; o banco guarda só o hash dele. Contas são criadas em /usuarios. */
 @RestController
 @RequestMapping("/auth")
 public class AuthController {
 
-    public record Registro(@NotBlank @Size(max = 60) String nome,
-                           @NotBlank @Email @Size(max = 120) String email,
-                           @NotBlank @Size(min = 8, max = 72) String senha) {}
     public record Credenciais(@NotBlank String email, @NotBlank String senha) {}
-    public record Token(String token, String nome) {}
+    public record Token(String token, String nome, Papel papel, Long lojaId, String lojaNome) {}
 
     private static final Duration VALIDADE = Duration.ofHours(24);
-    // Senha errada: 5 vezes por 15 min para o mesmo IP + e-mail. Contas criadas: limite por hora e por IP (configurável).
+    // Senha errada: 5 vezes por 15 min para o mesmo IP + e-mail.
     private static final int MAX_FALHAS = 5;
     private static final Duration JANELA_FALHAS = Duration.ofMinutes(15);
 
     private final UsuarioRepository usuarios;
     private final SessaoRepository sessoes;
     private final LimiteTentativas limite;
-    private final int maxRegistrosPorHora;
+    private final Auditor auditor;
     private final BCryptPasswordEncoder bcrypt = new BCryptPasswordEncoder();
     private final SecureRandom aleatorio = new SecureRandom();
     // Hash de uma senha qualquer: e-mail inexistente gasta o mesmo tempo que senha errada.
     private final String hashFalso = bcrypt.encode("senha-que-ninguem-tem");
 
-    public AuthController(UsuarioRepository usuarios, SessaoRepository sessoes, LimiteTentativas limite,
-                          @Value("${lojacafe.limite.registros-por-hora:10}") int maxRegistrosPorHora) {
+    public AuthController(UsuarioRepository usuarios, SessaoRepository sessoes, LimiteTentativas limite, Auditor auditor) {
         this.usuarios = usuarios;
         this.sessoes = sessoes;
         this.limite = limite;
-        this.maxRegistrosPorHora = maxRegistrosPorHora;
+        this.auditor = auditor;
     }
 
-    @PostMapping("/registrar")
-    @ResponseStatus(HttpStatus.CREATED)
-    @Transactional
-    public Token registrar(@Valid @RequestBody Registro r, HttpServletRequest req) {
-        String chaveIp = "registro:" + req.getRemoteAddr();
-        if (limite.estourou(chaveIp, maxRegistrosPorHora, Duration.ofHours(1))) {
-            throw muitasTentativas();
-        }
-        String email = r.email().trim().toLowerCase();
-        if (usuarios.findByEmail(email).isPresent()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Este e-mail já está cadastrado");
-        }
-        limite.registrar(chaveIp);
-        return abrirSessao(usuarios.save(new Usuario(r.nome(), email, bcrypt.encode(r.senha()))));
-    }
-
+    // noRollbackFor: a falha de login também é gravada na auditoria, mesmo respondendo com erro.
     @PostMapping("/entrar")
-    @Transactional
+    @Transactional(noRollbackFor = ResponseStatusException.class)
     public Token entrar(@Valid @RequestBody Credenciais c, HttpServletRequest req) {
         String email = c.email().trim().toLowerCase();
         String chave = "login:" + req.getRemoteAddr() + "|" + email;
         if (limite.estourou(chave, MAX_FALHAS, JANELA_FALHAS)) {
-            throw muitasTentativas(); // antes do BCrypt: quem está sendo atacado não gasta CPU
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Muitas tentativas. Aguarde alguns minutos e tente de novo"); // antes do BCrypt: quem é atacado não gasta CPU
         }
         Usuario usuario = usuarios.findByEmail(email).orElse(null);
         boolean confere = bcrypt.matches(c.senha(), usuario != null ? usuario.getSenhaHash() : hashFalso);
-        if (usuario == null || !confere) {
+        if (usuario == null || !confere || !usuario.isAtivo()) {
             limite.registrar(chave);
+            auditor.registrar(usuario, usuario == null ? null : usuario.getLojaId(), "LOGIN_FALHOU", "Usuario",
+                    usuario == null ? null : usuario.getId(), "email " + email);
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "E-mail ou senha incorretos");
         }
         limite.zerar(chave);
+        auditor.registrar(usuario, usuario.getLojaId(), "LOGIN", "Usuario", usuario.getId(), null);
         return abrirSessao(usuario);
     }
 
-    private static ResponseStatusException muitasTentativas() {
-        return new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Muitas tentativas. Aguarde alguns minutos e tente de novo");
+    @PostMapping("/sair")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void sair(@RequestAttribute(Autenticacao.TOKEN) String tokenHash) {
+        sessoes.deleteById(tokenHash);
     }
 
     private Token abrirSessao(Usuario usuario) {
@@ -90,6 +76,7 @@ public class AuthController {
         aleatorio.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         sessoes.save(new Sessao(Autenticacao.hash(token), usuario, Instant.now().plus(VALIDADE)));
-        return new Token(token, usuario.getNome());
+        Loja loja = usuario.getLoja();
+        return new Token(token, usuario.getNome(), usuario.getPapel(), usuario.getLojaId(), loja == null ? null : loja.getNome());
     }
 }

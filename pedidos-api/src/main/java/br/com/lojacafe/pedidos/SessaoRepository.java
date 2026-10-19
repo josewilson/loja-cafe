@@ -10,4 +10,9 @@ public interface SessaoRepository extends JpaRepository<Sessao, String> {
     @Modifying
     @Query("delete from Sessao s where s.expiraEm < :agora")
     int apagarVencidas(Instant agora);
+
+    /** Desativar uma conta derruba as sessões dela na hora. */
+    @Modifying
+    @Query("delete from Sessao s where s.usuario.id = :usuarioId")
+    int apagarDoUsuario(Long usuarioId);
 }

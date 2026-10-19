@@ -17,12 +17,12 @@ public class ResultadoPagamentoListener {
     private static final Logger log = LoggerFactory.getLogger(ResultadoPagamentoListener.class);
 
     private final PedidoRepository repository;
-    private final ProdutoRepository produtos;
+    private final EstoqueLojaRepository estoque;
     private final JsonMapper json;
 
-    public ResultadoPagamentoListener(PedidoRepository repository, ProdutoRepository produtos, JsonMapper json) {
+    public ResultadoPagamentoListener(PedidoRepository repository, EstoqueLojaRepository estoque, JsonMapper json) {
         this.repository = repository;
-        this.produtos = produtos;
+        this.estoque = estoque;
         this.json = json;
     }
 
@@ -36,7 +36,7 @@ public class ResultadoPagamentoListener {
                 repository.save(pedido);
                 if (pedido.getStatus() == StatusPedido.RECUSADO) {
                     // Só quem concluiu devolve: resultado repetido cai no "else" e não repõe de novo.
-                    pedido.getItens().forEach(i -> produtos.repor(i.getProdutoId(), i.getQuantidade()));
+                    pedido.getItens().forEach(i -> estoque.repor(pedido.getLojaId(), i.getProdutoId(), i.getQuantidade()));
                 }
                 log.info("Pedido {} agora está {}", pedido.getId(), pedido.getStatus());
             } else {

@@ -3,8 +3,12 @@ package br.com.lojacafe.pedidos;
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 /** Cardápio e opções que o front desenha na tela (specs/api.md). */
 @RestController
@@ -21,9 +25,15 @@ public class CardapioController {
         this.produtos = produtos;
     }
 
+    /** Cardápio da rede com o estoque da loja do usuário. O ADMIN (sem loja) escolhe com ?lojaId=. */
     @GetMapping("/produtos")
-    public List<Produto> produtos() {
-        return produtos.findAllByOrderByIdAsc();
+    public List<ProdutoComEstoque> produtos(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario,
+                                            @RequestParam(required = false) Long lojaId) {
+        Long loja = Autenticacao.escopo(usuario, lojaId);
+        if (loja == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe lojaId");
+        }
+        return produtos.cardapio(loja);
     }
 
     @GetMapping("/opcoes")

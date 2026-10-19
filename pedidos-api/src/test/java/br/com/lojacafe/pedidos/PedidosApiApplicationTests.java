@@ -4,9 +4,11 @@ import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.jayway.jsonpath.JsonPath;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,19 +19,19 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
-// Testa a API de verdade (HTTP + login + validação + banco), sem Kafka e com H2 em memória (não mexe no Postgres).
+// Testa a API de verdade (HTTP + login + papéis + validação + banco), sem Kafka e com H2 em memória (não mexe no Postgres).
 @SpringBootTest(properties = {
         "spring.kafka.admin.auto-create=false",
         "spring.kafka.listener.auto-startup=false",
         "spring.datasource.url=jdbc:h2:mem:teste",
         "DB_PASSWORD=teste", "KAFKA_USER=teste", "KAFKA_PASSWORD=teste", // sem Kafka nem Postgres de verdade aqui
-        // Nos testes o Hibernate cria as tabelas no H2 e o cardápio vem da própria V2 (as migrações são para o Postgres).
-        "lojacafe.limite.registros-por-hora=1000", // os testes criam muitas contas do mesmo IP
+        "lojacafe.admin.email=admin@teste.com", "lojacafe.admin.senha=admin12345",
+        // Nos testes o Hibernate cria as tabelas no H2 e o cardápio vem de seed-teste.sql (as migrações são para o Postgres).
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.defer-datasource-initialization=true",
         "spring.sql.init.mode=always",
-        "spring.sql.init.data-locations=classpath:db/migration/V2__cardapio_inicial.sql"
+        "spring.sql.init.data-locations=classpath:seed-teste.sql"
 })
 @AutoConfigureMockMvc
 class PedidosApiApplicationTests {
@@ -37,27 +39,74 @@ class PedidosApiApplicationTests {
     @Autowired
     MockMvc mvc;
     @Autowired
-    ProdutoRepository produtos;
-    @Autowired
     ResultadoPagamentoListener listener;
 
     // O envio ao Kafka é só um "ok" aqui: não existe broker nos testes.
     @MockitoBean
     PedidoEventos eventos;
 
-    private static final String CONTA = "{\"nome\":\"%s\",\"email\":\"%s\",\"senha\":\"segredo123\"}";
+    // ---------- ajudantes ----------
 
-    /** Cria uma conta nova (e-mail único por chamada) e devolve o token. */
-    private String novaConta(String nome) throws Exception {
-        String corpo = mvc.perform(post("/auth/registrar").contentType(MediaType.APPLICATION_JSON)
-                        .content(CONTA.formatted(nome, UUID.randomUUID() + "@exemplo.com")))
-                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        return JsonPath.read(corpo, "$.token");
+    private ResultActions GET(String token, String caminho) throws Exception {
+        var req = get(caminho);
+        return mvc.perform(token == null ? req : req.header("Authorization", "Bearer " + token));
     }
 
-    private ResultActions postar(String token, String json) throws Exception {
-        return mvc.perform(post("/pedidos").header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON).content(json));
+    private ResultActions enviar(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder req,
+                                 String token, String json) throws Exception {
+        req = req.contentType(MediaType.APPLICATION_JSON).content(json);
+        return mvc.perform(token == null ? req : req.header("Authorization", "Bearer " + token));
+    }
+
+    private ResultActions POST(String token, String caminho, String json) throws Exception {
+        return enviar(post(caminho), token, json);
+    }
+
+    private ResultActions PUT(String token, String caminho, String json) throws Exception {
+        return enviar(put(caminho), token, json);
+    }
+
+    private ResultActions entrar(String email, String senha) throws Exception {
+        return POST(null, "/auth/entrar", "{\"email\":\"" + email + "\",\"senha\":\"" + senha + "\"}");
+    }
+
+    private static String texto(ResultActions r, String caminho) throws Exception {
+        return JsonPath.read(r.andReturn().getResponse().getContentAsString(), caminho).toString();
+    }
+
+    private String tokenDe(String email, String senha) throws Exception {
+        return texto(entrar(email, senha).andExpect(status().isOk()), "$.token");
+    }
+
+    // O login gasta BCrypt (devagar de propósito): o token do admin é pedido uma vez só.
+    private static String tokenAdmin;
+
+    private String admin() throws Exception {
+        if (tokenAdmin == null) {
+            tokenAdmin = tokenDe("admin@teste.com", "admin12345");
+        }
+        return tokenAdmin;
+    }
+
+    /** Cria uma loja nova (50 unidades de cada produto) e devolve o id. */
+    private long novaLoja() throws Exception {
+        var r = POST(admin(), "/lojas", "{\"nome\":\"Loja " + UUID.randomUUID() + "\",\"estoqueInicial\":50}").andExpect(status().isCreated());
+        return Long.parseLong(texto(r, "$.id"));
+    }
+
+    private static final String SENHA = "segredo123";
+
+    /** Cria um usuário com o papel na loja (e-mail único) e devolve o e-mail. */
+    private String novoUsuario(Papel papel, Long lojaId) throws Exception {
+        String email = UUID.randomUUID() + "@exemplo.com";
+        String loja = lojaId == null ? "" : ",\"lojaId\":" + lojaId;
+        POST(admin(), "/usuarios", "{\"nome\":\"" + papel + "\",\"email\":\"" + email + "\",\"senha\":\"" + SENHA
+                + "\",\"papel\":\"" + papel + "\"" + loja + "}").andExpect(status().isCreated());
+        return email;
+    }
+
+    private String token(Papel papel, long lojaId) throws Exception {
+        return tokenDe(novoUsuario(papel, lojaId), SENHA);
     }
 
     private static String pedido(String itens) {
@@ -68,23 +117,21 @@ class PedidosApiApplicationTests {
         return pedido("[{\"produtoId\":" + produtoId + ",\"quantidade\":" + quantidade + "}]");
     }
 
-    private int estoque(long id) {
-        return produtos.findById(id).orElseThrow().getEstoque();
+    @SuppressWarnings("unchecked")
+    private int estoque(String token, int produtoId) throws Exception {
+        String corpo = GET(token, "/produtos").andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        return ((List<Integer>) JsonPath.read(corpo, "$[?(@.id==" + produtoId + ")].estoque")).get(0);
     }
+
+    // ---------- básico ----------
 
     @Test
     void contextLoads() {
     }
 
     @Test
-    void cardapioEOpcoesSaoPublicos() throws Exception {
-        mvc.perform(get("/produtos"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(4)))
-                .andExpect(jsonPath("$[0].nome").value("Café coado"))
-                .andExpect(jsonPath("$[0].preco").value(8.5))
-                .andExpect(jsonPath("$[0].estoque").isNumber());
-        mvc.perform(get("/opcoes"))
+    void opcoesSaoPublicas() throws Exception {
+        GET(null, "/opcoes")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tamanhos", hasSize(3)))
                 .andExpect(jsonPath("$.extras", hasSize(4)))
@@ -92,107 +139,298 @@ class PedidosApiApplicationTests {
                 .andExpect(jsonPath("$.formasPagamento[?(@.codigo=='CREDITO')].parcelasMax", contains(3)));
     }
 
+    @Test
+    void todoOResto_exigeLogin() throws Exception {
+        for (String caminho : new String[]{"/produtos", "/pedidos", "/usuarios", "/lojas", "/auditoria"}) {
+            GET(null, caminho).andExpect(status().isUnauthorized());
+        }
+        POST(null, "/pedidos", umItem(1, 1)).andExpect(status().isUnauthorized());
+        POST(null, "/auth/sair", "{}").andExpect(status().isUnauthorized());
+        GET("token-inventado", "/pedidos").andExpect(status().isUnauthorized());
+    }
+
     // ---------- login ----------
 
     @Test
-    void pedidosExigemLogin() throws Exception {
-        mvc.perform(get("/pedidos")).andExpect(status().isUnauthorized());
-        mvc.perform(post("/pedidos").contentType(MediaType.APPLICATION_JSON).content(umItem(1, 1)))
-                .andExpect(status().isUnauthorized());
-        mvc.perform(get("/pedidos").header("Authorization", "Bearer token-inventado"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void registrarEEntrar() throws Exception {
-        String email = UUID.randomUUID() + "@exemplo.com";
-        String conta = CONTA.formatted("Bia", email);
-        mvc.perform(post("/auth/registrar").contentType(MediaType.APPLICATION_JSON).content(conta))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.nome").value("Bia"))
+    void loginDevolvePapelELoja() throws Exception {
+        entrar("admin@teste.com", "admin12345").andExpect(status().isOk())
+                .andExpect(jsonPath("$.papel").value("ADMIN"))
+                .andExpect(jsonPath("$.lojaId").doesNotExist());
+        long loja = novaLoja();
+        entrar(novoUsuario(Papel.ATENDENTE, loja), SENHA).andExpect(status().isOk())
+                .andExpect(jsonPath("$.papel").value("ATENDENTE"))
+                .andExpect(jsonPath("$.lojaId").value(loja))
+                .andExpect(jsonPath("$.lojaNome", startsWith("Loja ")))
                 .andExpect(jsonPath("$.token", not(emptyString())));
-        // mesmo e-mail (mesmo com outras maiúsculas) não cadastra de novo
-        mvc.perform(post("/auth/registrar").contentType(MediaType.APPLICATION_JSON)
-                        .content(CONTA.formatted("Outra", email.toUpperCase())))
-                .andExpect(status().isConflict());
-        mvc.perform(post("/auth/entrar").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"senha\":\"segredo123\"}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nome").value("Bia"));
     }
 
     @Test
     void loginComDadosErradosDa401() throws Exception {
-        String email = UUID.randomUUID() + "@exemplo.com";
-        mvc.perform(post("/auth/registrar").contentType(MediaType.APPLICATION_JSON).content(CONTA.formatted("Caio", email)))
-                .andExpect(status().isCreated());
-        mvc.perform(post("/auth/entrar").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"" + email + "\",\"senha\":\"senha-errada\"}"))
-                .andExpect(status().isUnauthorized());
-        mvc.perform(post("/auth/entrar").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"ninguem@exemplo.com\",\"senha\":\"segredo123\"}"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    private ResultActions entrar(String email, String senha) throws Exception {
-        return mvc.perform(post("/auth/entrar").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"" + email + "\",\"senha\":\"" + senha + "\"}"));
-    }
-
-    private String contaNova(String nome) throws Exception {
-        String email = UUID.randomUUID() + "@exemplo.com";
-        mvc.perform(post("/auth/registrar").contentType(MediaType.APPLICATION_JSON).content(CONTA.formatted(nome, email)))
-                .andExpect(status().isCreated());
-        return email;
+        String email = novoUsuario(Papel.ATENDENTE, novaLoja());
+        entrar(email, "senha-errada").andExpect(status().isUnauthorized());
+        entrar("ninguem@exemplo.com", SENHA).andExpect(status().isUnauthorized());
+        entrar(email.toUpperCase(), SENHA).andExpect(status().isOk()); // e-mail não diferencia maiúsculas
     }
 
     @Test
     void senhaErradaVariasVezesBloqueiaMesmoComASenhaCerta() throws Exception {
-        String email = contaNova("Duda");
+        String email = novoUsuario(Papel.ATENDENTE, novaLoja());
         for (int i = 0; i < 5; i++) {
             entrar(email, "senha-errada").andExpect(status().isUnauthorized());
         }
-        // a 6ª tentativa já é barrada, até com a senha certa
-        entrar(email, "segredo123").andExpect(status().isTooManyRequests());
-        // outro e-mail do mesmo IP não é afetado
-        novaConta("Outro");
+        entrar(email, SENHA).andExpect(status().isTooManyRequests()); // a 6ª já é barrada, até com a senha certa
+        entrar(novoUsuario(Papel.ATENDENTE, novaLoja()), SENHA).andExpect(status().isOk()); // outro e-mail não é afetado
     }
 
     @Test
     void loginCertoZeraAsFalhas() throws Exception {
-        String email = contaNova("Eva");
+        String email = novoUsuario(Papel.ATENDENTE, novaLoja());
         for (int rodada = 0; rodada < 2; rodada++) {
             for (int i = 0; i < 4; i++) {
                 entrar(email, "senha-errada").andExpect(status().isUnauthorized());
             }
-            // o login certo zera o contador: 4 falhas de novo ainda não bloqueiam
-            entrar(email, "segredo123").andExpect(status().isOk());
+            entrar(email, SENHA).andExpect(status().isOk()); // zera o contador: 4 falhas de novo ainda não bloqueiam
         }
     }
 
     @Test
-    void cadastroInvalidoDa400() throws Exception {
-        for (String conta : new String[]{
-                CONTA.formatted("", "a@exemplo.com"),
-                CONTA.formatted("Ana", "isto-nao-e-email"),
-                "{\"nome\":\"Ana\",\"email\":\"a@exemplo.com\",\"senha\":\"curta\"}"}) {
-            mvc.perform(post("/auth/registrar").contentType(MediaType.APPLICATION_JSON).content(conta))
-                    .andExpect(status().isBadRequest());
-        }
+    void sairEncerraASessao() throws Exception {
+        String t = token(Papel.ATENDENTE, novaLoja());
+        GET(t, "/pedidos").andExpect(status().isOk());
+        POST(t, "/auth/sair", "{}").andExpect(status().isNoContent());
+        GET(t, "/pedidos").andExpect(status().isUnauthorized());
+    }
+
+    // ---------- papéis ----------
+
+    @Test
+    void cadaPapelSoFazOQuePode() throws Exception {
+        long loja = novaLoja();
+        String atendente = token(Papel.ATENDENTE, loja);
+        String cozinha = token(Papel.COZINHA, loja);
+        String gerente = token(Papel.GERENTE, loja);
+
+        // atendente: lança e vê pedidos, mas não administra nada
+        POST(atendente, "/pedidos", umItem(1, 1)).andExpect(status().isCreated());
+        GET(atendente, "/pedidos").andExpect(status().isOk());
+        GET(atendente, "/usuarios").andExpect(status().isForbidden());
+        GET(atendente, "/auditoria").andExpect(status().isForbidden());
+        GET(atendente, "/lojas").andExpect(status().isForbidden());
+        PUT(atendente, "/lojas/" + loja + "/estoque/1", "{\"quantidade\":5}").andExpect(status().isForbidden());
+
+        // cozinha: só enxerga
+        GET(cozinha, "/pedidos").andExpect(status().isOk());
+        GET(cozinha, "/produtos").andExpect(status().isOk());
+        POST(cozinha, "/pedidos", umItem(1, 1)).andExpect(status().isForbidden());
+
+        // gerente: lança pedido e administra a própria loja, mas não cria lojas
+        POST(gerente, "/pedidos", umItem(1, 1)).andExpect(status().isCreated());
+        GET(gerente, "/usuarios").andExpect(status().isOk());
+        GET(gerente, "/auditoria").andExpect(status().isOk());
+        POST(gerente, "/lojas", "{\"nome\":\"X\"}").andExpect(status().isForbidden());
+        GET(gerente, "/lojas").andExpect(status().isForbidden());
+
+        // admin não tem loja, então não lança pedido
+        POST(admin(), "/pedidos", umItem(1, 1)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void gerenteCriaSoAtendenteECozinhaNaPropriaLoja() throws Exception {
+        long loja = novaLoja();
+        long outra = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String base = "\"nome\":\"Novo\",\"senha\":\"" + SENHA + "\"";
+
+        POST(gerente, "/usuarios", "{" + base + ",\"email\":\"" + UUID.randomUUID() + "@x.com\",\"papel\":\"ATENDENTE\"}")
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.lojaId").value(loja));
+        POST(gerente, "/usuarios", "{" + base + ",\"email\":\"" + UUID.randomUUID() + "@x.com\",\"papel\":\"GERENTE\"}")
+                .andExpect(status().isForbidden());
+        POST(gerente, "/usuarios", "{" + base + ",\"email\":\"" + UUID.randomUUID() + "@x.com\",\"papel\":\"ADMIN\"}")
+                .andExpect(status().isForbidden());
+        POST(gerente, "/usuarios", "{" + base + ",\"email\":\"" + UUID.randomUUID() + "@x.com\",\"papel\":\"COZINHA\",\"lojaId\":" + outra + "}")
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCriaUsuariosEValidaOsDados() throws Exception {
+        long loja = novaLoja();
+        String t = admin();
+        String email = UUID.randomUUID() + "@x.com";
+        String corpo = "{\"nome\":\"Bia\",\"email\":\"" + email + "\",\"senha\":\"" + SENHA + "\",\"papel\":\"ATENDENTE\",\"lojaId\":" + loja + "}";
+        POST(t, "/usuarios", corpo).andExpect(status().isCreated())
+                .andExpect(jsonPath("$.senha").doesNotExist())
+                .andExpect(jsonPath("$.senhaHash").doesNotExist())
+                .andExpect(jsonPath("$.ativo").value(true));
+        POST(t, "/usuarios", corpo.replace(email, email.toUpperCase())).andExpect(status().isConflict());
+        // papel de loja exige lojaId existente; ADMIN não tem loja
+        POST(t, "/usuarios", corpo.replace(",\"lojaId\":" + loja, "")).andExpect(status().isBadRequest());
+        POST(t, "/usuarios", corpo.replace("\"lojaId\":" + loja, "\"lojaId\":999999")).andExpect(status().isBadRequest());
+        POST(t, "/usuarios", "{\"nome\":\"Chefe\",\"email\":\"" + UUID.randomUUID() + "@x.com\",\"senha\":\"" + SENHA + "\",\"papel\":\"ADMIN\"}")
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.lojaId").doesNotExist());
+        // dados inválidos
+        POST(t, "/usuarios", "{\"nome\":\"\",\"email\":\"nao-e-email\",\"senha\":\"curta\",\"papel\":\"ATENDENTE\"}")
+                .andExpect(status().isBadRequest());
+        POST(t, "/usuarios", "{\"nome\":\"X\",\"email\":\"a@b.com\",\"senha\":\"" + SENHA + "\",\"papel\":\"CHEFE\"}")
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void desativarUsuarioDerrubaASessaoEBloqueiaOLogin() throws Exception {
+        long loja = novaLoja();
+        String email = novoUsuario(Papel.ATENDENTE, loja);
+        String t = tokenDe(email, SENHA);
+        long id = Long.parseLong(texto(GET(admin(), "/usuarios"), "$[?(@.email=='" + email + "')].id").replaceAll("[\\[\\]]", ""));
+        GET(t, "/pedidos").andExpect(status().isOk());
+
+        PUT(admin(), "/usuarios/" + id + "/ativo", "{\"ativo\":false}").andExpect(status().isOk()).andExpect(jsonPath("$.ativo").value(false));
+        GET(t, "/pedidos").andExpect(status().isUnauthorized());
+        entrar(email, SENHA).andExpect(status().isUnauthorized());
+
+        PUT(admin(), "/usuarios/" + id + "/ativo", "{\"ativo\":true}").andExpect(status().isOk());
+        entrar(email, SENHA).andExpect(status().isOk());
+    }
+
+    @Test
+    void desativarTemRegras() throws Exception {
+        long loja = novaLoja();
+        long outra = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String emailOutra = novoUsuario(Papel.ATENDENTE, outra);
+        String emailGerente2 = novoUsuario(Papel.GERENTE, loja);
+        long idOutra = Long.parseLong(texto(GET(admin(), "/usuarios"), "$[?(@.email=='" + emailOutra + "')].id").replaceAll("[\\[\\]]", ""));
+        long idGerente2 = Long.parseLong(texto(GET(admin(), "/usuarios"), "$[?(@.email=='" + emailGerente2 + "')].id").replaceAll("[\\[\\]]", ""));
+        long idAdmin = Long.parseLong(texto(GET(admin(), "/usuarios"), "$[?(@.email=='admin@teste.com')].id").replaceAll("[\\[\\]]", ""));
+
+        PUT(gerente, "/usuarios/" + idOutra + "/ativo", "{\"ativo\":false}").andExpect(status().isForbidden()); // outra loja
+        PUT(gerente, "/usuarios/" + idGerente2 + "/ativo", "{\"ativo\":false}").andExpect(status().isForbidden()); // outro gerente
+        PUT(admin(), "/usuarios/" + idAdmin + "/ativo", "{\"ativo\":false}").andExpect(status().isBadRequest()); // a si mesmo
+        PUT(admin(), "/usuarios/999999/ativo", "{\"ativo\":false}").andExpect(status().isNotFound());
+    }
+
+    @Test
+    void listaDeUsuariosRespeitaALoja() throws Exception {
+        long loja = novaLoja();
+        long outra = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        novoUsuario(Papel.ATENDENTE, loja);
+        novoUsuario(Papel.ATENDENTE, outra);
+        GET(gerente, "/usuarios").andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].lojaId", everyItem(is((int) loja))))
+                .andExpect(jsonPath("$", hasSize(2))); // o gerente e o atendente da loja dele
+        GET(admin(), "/usuarios").andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(4))));
+    }
+
+    // ---------- lojas ----------
+
+    @Test
+    void adminCriaLojaComEstoqueInicial() throws Exception {
+        String t = admin();
+        String nome = "Loja " + UUID.randomUUID();
+        POST(t, "/lojas", "{\"nome\":\"" + nome + "\",\"estoqueInicial\":7}").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.nome").value(nome)).andExpect(jsonPath("$.ativa").value(true));
+        POST(t, "/lojas", "{\"nome\":\"" + nome + "\"}").andExpect(status().isConflict());
+        POST(t, "/lojas", "{\"nome\":\"\"}").andExpect(status().isBadRequest());
+        POST(t, "/lojas", "{\"nome\":\"Y\",\"estoqueInicial\":-1}").andExpect(status().isBadRequest());
+        GET(t, "/lojas").andExpect(status().isOk()).andExpect(jsonPath("$[?(@.nome=='" + nome + "')]", hasSize(1)));
+        // sem estoqueInicial a loja nasce zerada
+        long zerada = Long.parseLong(texto(POST(t, "/lojas", "{\"nome\":\"" + UUID.randomUUID() + "\"}").andExpect(status().isCreated()), "$.id"));
+        assertEquals(0, estoque(token(Papel.ATENDENTE, zerada), 1));
+    }
+
+    // ---------- cardápio e estoque por loja ----------
+
+    @Test
+    void cardapioEDaRedeEEstoqueEDaLoja() throws Exception {
+        long a = novaLoja();
+        long b = novaLoja();
+        String atendenteA = token(Papel.ATENDENTE, a);
+        String atendenteB = token(Papel.ATENDENTE, b);
+        GET(atendenteA, "/produtos").andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(4)))
+                .andExpect(jsonPath("$[0].nome").value("Café coado"))
+                .andExpect(jsonPath("$[0].preco").value(8.5));
+
+        POST(atendenteA, "/pedidos", umItem(2, 5)).andExpect(status().isCreated());
+        assertEquals(45, estoque(atendenteA, 2));
+        assertEquals(50, estoque(atendenteB, 2)); // a outra loja não foi afetada
+    }
+
+    @Test
+    void adminPrecisaDizerQualLojaParaVerOCardapio() throws Exception {
+        long loja = novaLoja();
+        GET(admin(), "/produtos").andExpect(status().isBadRequest());
+        GET(admin(), "/produtos?lojaId=" + loja).andExpect(status().isOk()).andExpect(jsonPath("$[0].estoque").value(50));
+        GET(token(Papel.ATENDENTE, loja), "/produtos?lojaId=" + (loja + 1000)).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void estoqueFaltandoDa400SemGravarNada() throws Exception {
+        String t = token(Papel.ATENDENTE, novaLoja());
+        POST(t, "/pedidos", umItem(4, 30)).andExpect(status().isCreated());
+        POST(t, "/pedidos", umItem(4, 30)).andExpect(status().isBadRequest()); // só restam 20
+        assertEquals(20, estoque(t, 4));
+        GET(t, "/pedidos").andExpect(jsonPath("$", hasSize(1)));
+        // falta num item desfaz os outros
+        POST(t, "/pedidos", pedido("[{\"produtoId\":3,\"quantidade\":1},{\"produtoId\":4,\"quantidade\":21}]")).andExpect(status().isBadRequest());
+        assertEquals(50, estoque(t, 3));
+    }
+
+    @Test
+    void gerenteAjustaOEstoqueDaPropriaLoja() throws Exception {
+        long loja = novaLoja();
+        long outra = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        PUT(gerente, "/lojas/" + loja + "/estoque/1", "{\"quantidade\":12}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.quantidade").value(12));
+        assertEquals(12, estoque(gerente, 1));
+        PUT(gerente, "/lojas/" + outra + "/estoque/1", "{\"quantidade\":12}").andExpect(status().isForbidden());
+        PUT(gerente, "/lojas/" + loja + "/estoque/1", "{\"quantidade\":-1}").andExpect(status().isBadRequest());
+        PUT(gerente, "/lojas/" + loja + "/estoque/99", "{\"quantidade\":1}").andExpect(status().isNotFound());
+        PUT(admin(), "/lojas/999999/estoque/1", "{\"quantidade\":1}").andExpect(status().isNotFound());
+        PUT(admin(), "/lojas/" + outra + "/estoque/1", "{\"quantidade\":3}").andExpect(status().isOk());
+    }
+
+    @Test
+    void pagamentoRecusadoDevolveOEstoqueDaLojaCertaUmaSoVez() throws Exception {
+        long loja = novaLoja();
+        long outra = novaLoja();
+        String t = token(Papel.ATENDENTE, loja);
+        String corpo = POST(t, "/pedidos", umItem(3, 10)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(corpo, "$.id")).longValue();
+        assertEquals(40, estoque(t, 3));
+
+        String recusado = "{\"versao\":1,\"pedidoId\":" + id + ",\"status\":\"RECUSADO\",\"motivo\":\"limite\",\"instancia\":\"caixa-1\"}";
+        listener.receber(recusado);
+        assertEquals(50, estoque(t, 3));
+        listener.receber(recusado); // evento repetido: não repõe de novo
+        assertEquals(50, estoque(t, 3));
+        assertEquals(50, estoque(token(Papel.ATENDENTE, outra), 3));
+    }
+
+    @Test
+    void pagamentoAprovadoNaoMexeNoEstoque() throws Exception {
+        String t = token(Papel.ATENDENTE, novaLoja());
+        String corpo = POST(t, "/pedidos", umItem(3, 2)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(corpo, "$.id")).longValue();
+        listener.receber("{\"versao\":1,\"pedidoId\":" + id + ",\"status\":\"APROVADO\",\"motivo\":null,\"instancia\":\"caixa-1\"}");
+        assertEquals(48, estoque(t, 3));
     }
 
     // ---------- pedidos ----------
 
     @Test
     void postValidoCalculaOValorNoServidor() throws Exception {
-        String token = novaConta("Ana");
+        long loja = novaLoja();
+        String t = token(Papel.ATENDENTE, loja);
         // Cappuccino 12,00 + Grande 3,00 + Chantilly 2,00 + Canela 0,50 = 17,50 × 2 = 35,00; mais 1 café coado 8,50
-        postar(token, """
-                {"formaPagamento":"CREDITO","parcelas":2,"observacao":"sem açúcar",
+        POST(t, "/pedidos", """
+                {"cliente":"Ana","formaPagamento":"CREDITO","parcelas":2,"observacao":"sem açúcar",
                  "itens":[{"produtoId":2,"quantidade":2,"tamanho":"GRANDE","extras":["CHANTILLY","CANELA"]},
                           {"produtoId":1,"quantidade":1}]}""")
                 .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.lojaId").value(loja))
                 .andExpect(jsonPath("$.cliente").value("Ana"))
+                .andExpect(jsonPath("$.atendente").value("ATENDENTE"))
                 .andExpect(jsonPath("$.itens", hasSize(2)))
                 .andExpect(jsonPath("$.itens[0].item").value("Cappuccino"))
                 .andExpect(jsonPath("$.itens[0].valor").value(35.0))
@@ -206,113 +444,110 @@ class PedidosApiApplicationTests {
     }
 
     @Test
+    void clienteDoBalcaoEOpcional() throws Exception {
+        String t = token(Papel.ATENDENTE, novaLoja());
+        POST(t, "/pedidos", umItem(1, 1)).andExpect(status().isCreated()).andExpect(jsonPath("$.cliente").value("Balcão"));
+        POST(t, "/pedidos", "{\"cliente\":\"  Carla \",\"formaPagamento\":\"PIX\",\"itens\":[{\"produtoId\":1,\"quantidade\":1}]}")
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.cliente").value("Carla"));
+    }
+
+    @Test
     void precoEnviadoPeloClienteEIgnorado() throws Exception {
-        postar(novaConta("Ana"), pedido("[{\"produtoId\":1,\"quantidade\":1,\"precoUnitario\":0.01}]"))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.valor").value(8.5));
+        POST(token(Papel.ATENDENTE, novaLoja()), "/pedidos", pedido("[{\"produtoId\":1,\"quantidade\":1,\"precoUnitario\":0.01}]"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.valor").value(8.5));
     }
 
     @Test
     void entradasInvalidasDao400() throws Exception {
-        String t = novaConta("Ana");
-        postar(t, umItem(99, 1)).andExpect(status().isBadRequest());
-        postar(t, umItem(1, 0)).andExpect(status().isBadRequest());
-        postar(t, umItem(1, 51)).andExpect(status().isBadRequest());
-        postar(t, pedido("[]")).andExpect(status().isBadRequest());
-        postar(t, "{\"itens\":[{\"produtoId\":1,\"quantidade\":1}]}").andExpect(status().isBadRequest());
-        postar(t, "{\"formaPagamento\":\"FIADO\",\"itens\":[{\"produtoId\":1,\"quantidade\":1}]}").andExpect(status().isBadRequest());
-        postar(t, pedido("[{\"produtoId\":1,\"quantidade\":1,\"tamanho\":\"XG\"}]")).andExpect(status().isBadRequest());
-        postar(t, pedido("[{\"produtoId\":1,\"quantidade\":1,\"extras\":[\"GELO\"]}]")).andExpect(status().isBadRequest());
-        postar(t, "{\"formaPagamento\":\"PIX\",\"observacao\":\"" + "x".repeat(141)
+        String t = token(Papel.ATENDENTE, novaLoja());
+        POST(t, "/pedidos", umItem(99, 1)).andExpect(status().isBadRequest());
+        POST(t, "/pedidos", umItem(1, 0)).andExpect(status().isBadRequest());
+        POST(t, "/pedidos", umItem(1, 51)).andExpect(status().isBadRequest());
+        POST(t, "/pedidos", pedido("[]")).andExpect(status().isBadRequest());
+        POST(t, "/pedidos", "{\"itens\":[{\"produtoId\":1,\"quantidade\":1}]}").andExpect(status().isBadRequest());
+        POST(t, "/pedidos", "{\"formaPagamento\":\"FIADO\",\"itens\":[{\"produtoId\":1,\"quantidade\":1}]}").andExpect(status().isBadRequest());
+        POST(t, "/pedidos", pedido("[{\"produtoId\":1,\"quantidade\":1,\"tamanho\":\"XG\"}]")).andExpect(status().isBadRequest());
+        POST(t, "/pedidos", pedido("[{\"produtoId\":1,\"quantidade\":1,\"extras\":[\"GELO\"]}]")).andExpect(status().isBadRequest());
+        POST(t, "/pedidos", "{\"cliente\":\"" + "A".repeat(61) + "\",\"formaPagamento\":\"PIX\",\"itens\":[{\"produtoId\":1,\"quantidade\":1}]}")
+                .andExpect(status().isBadRequest());
+        POST(t, "/pedidos", "{\"formaPagamento\":\"PIX\",\"observacao\":\"" + "x".repeat(141)
                 + "\",\"itens\":[{\"produtoId\":1,\"quantidade\":1}]}").andExpect(status().isBadRequest());
-        postar(t, "{\"formaPagamento\":").andExpect(status().isBadRequest());
+        POST(t, "/pedidos", "{\"formaPagamento\":").andExpect(status().isBadRequest());
     }
 
     @Test
     void parcelasAcimaDoPermitidoDao400() throws Exception {
-        String t = novaConta("Ana");
+        String t = token(Papel.ATENDENTE, novaLoja());
         String item = "[{\"produtoId\":1,\"quantidade\":1}]";
-        postar(t, "{\"formaPagamento\":\"PIX\",\"parcelas\":2,\"itens\":" + item + "}").andExpect(status().isBadRequest());
-        postar(t, "{\"formaPagamento\":\"CREDITO\",\"parcelas\":3,\"itens\":" + item + "}").andExpect(status().isCreated());
-        postar(t, "{\"formaPagamento\":\"DINHEIRO\",\"itens\":" + item + "}").andExpect(status().isCreated());
+        POST(t, "/pedidos", "{\"formaPagamento\":\"PIX\",\"parcelas\":2,\"itens\":" + item + "}").andExpect(status().isBadRequest());
+        POST(t, "/pedidos", "{\"formaPagamento\":\"CREDITO\",\"parcelas\":3,\"itens\":" + item + "}").andExpect(status().isCreated());
+        POST(t, "/pedidos", "{\"formaPagamento\":\"DINHEIRO\",\"itens\":" + item + "}").andExpect(status().isCreated());
     }
 
     @Test
     void erroDeValidacaoDizQualCampoFalhou() throws Exception {
         // O corpo JSON do erro vem do /error, que o MockMvc não percorre: aqui olhamos a exceção.
         // O corpo real (com "errors") foi conferido com a API no ar.
-        postar(novaConta("Ana"), pedido("[{\"produtoId\":1,\"quantidade\":0}]"))
+        POST(token(Papel.ATENDENTE, novaLoja()), "/pedidos", pedido("[{\"produtoId\":1,\"quantidade\":0}]"))
                 .andExpect(status().isBadRequest())
                 .andExpect(result -> {
                     var erro = (org.springframework.web.bind.MethodArgumentNotValidException) result.getResolvedException();
                     var campos = erro.getBindingResult().getFieldErrors().stream().map(e -> e.getField()).toList();
-                    org.junit.jupiter.api.Assertions.assertTrue(
-                            campos.contains("itens[0].quantidade"), "campos: " + campos);
+                    org.junit.jupiter.api.Assertions.assertTrue(campos.contains("itens[0].quantidade"), "campos: " + campos);
                 });
     }
 
     @Test
-    void listaSoMostraOsPedidosDoDonoRespeitandoLimiteEOrdem() throws Exception {
-        String ana = novaConta("Ana");
-        String bia = novaConta("Bia");
-        postar(ana, umItem(1, 1)).andExpect(status().isCreated());
-        postar(ana, umItem(2, 1)).andExpect(status().isCreated());
-        postar(bia, umItem(1, 1)).andExpect(status().isCreated());
-        mvc.perform(get("/pedidos").header("Authorization", "Bearer " + ana))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$", hasSize(2)))
+    void cadaLojaSoVeOsSeusPedidos() throws Exception {
+        long a = novaLoja();
+        long b = novaLoja();
+        String atendenteA = token(Papel.ATENDENTE, a);
+        String cozinhaA = token(Papel.COZINHA, a);
+        String atendenteB = token(Papel.ATENDENTE, b);
+        POST(atendenteA, "/pedidos", umItem(1, 1)).andExpect(status().isCreated());
+        POST(atendenteA, "/pedidos", umItem(2, 1)).andExpect(status().isCreated());
+        POST(atendenteB, "/pedidos", umItem(1, 1)).andExpect(status().isCreated());
+
+        GET(atendenteA, "/pedidos").andExpect(jsonPath("$", hasSize(2)))
                 .andExpect(jsonPath("$[0].itens[0].item").value("Cappuccino")) // mais novo primeiro
-                .andExpect(jsonPath("$[*].cliente", everyItem(is("Ana"))));
-        mvc.perform(get("/pedidos").param("limite", "1").header("Authorization", "Bearer " + ana))
-                .andExpect(jsonPath("$", hasSize(1)));
+                .andExpect(jsonPath("$[*].lojaId", everyItem(is((int) a))));
+        GET(cozinhaA, "/pedidos").andExpect(jsonPath("$", hasSize(2))); // a cozinha vê os da mesma loja
+        GET(atendenteA, "/pedidos?limite=1").andExpect(jsonPath("$", hasSize(1)));
+        GET(atendenteB, "/pedidos").andExpect(jsonPath("$", hasSize(1)));
+        GET(atendenteA, "/pedidos?lojaId=" + b).andExpect(status().isForbidden());
+        GET(atendenteA, "/pedidos?lojaId=" + a).andExpect(status().isOk());
+
+        // o ADMIN vê todas, ou filtra
+        GET(admin(), "/pedidos?lojaId=" + b).andExpect(jsonPath("$", hasSize(1)));
+        GET(admin(), "/pedidos?limite=200").andExpect(jsonPath("$[*].lojaId", hasItems((int) a, (int) b)));
     }
 
-    // ---------- estoque ----------
+    // ---------- auditoria ----------
 
     @Test
-    void estoqueBaixaEFaltaDa400SemGravarNada() throws Exception {
-        String t = novaConta("Ana");
-        int antes = estoque(4);
-        postar(t, umItem(4, 5)).andExpect(status().isCreated());
-        assertEquals(antes - 5, estoque(4));
-        // pede mais do que existe: 400, o estoque fica como estava e o pedido não é gravado
-        postar(t, umItem(4, antes)).andExpect(status().isBadRequest());
-        assertEquals(antes - 5, estoque(4));
-        mvc.perform(get("/pedidos").header("Authorization", "Bearer " + t)).andExpect(jsonPath("$", hasSize(1)));
-    }
+    void auditoriaRegistraQuemFezOQuePorLoja() throws Exception {
+        long a = novaLoja();
+        long b = novaLoja();
+        String atendenteA = token(Papel.ATENDENTE, a);
+        String gerenteA = token(Papel.GERENTE, a);
+        String atendenteB = token(Papel.ATENDENTE, b);
+        POST(atendenteA, "/pedidos", umItem(1, 1)).andExpect(status().isCreated());
+        POST(atendenteB, "/pedidos", umItem(1, 1)).andExpect(status().isCreated());
+        PUT(gerenteA, "/lojas/" + a + "/estoque/1", "{\"quantidade\":9}").andExpect(status().isOk());
+        entrar("ninguem@exemplo.com", SENHA).andExpect(status().isUnauthorized());
 
-    @Test
-    void faltaDeEstoqueEmUmItemDesfazOsOutros() throws Exception {
-        String t = novaConta("Ana");
-        int antes = estoque(3);
-        postar(t, pedido("[{\"produtoId\":3,\"quantidade\":1},{\"produtoId\":3,\"quantidade\":" + (antes + 1) + "}]"))
-                .andExpect(status().isBadRequest());
-        assertEquals(antes, estoque(3));
-    }
+        // o gerente só enxerga a própria loja
+        GET(gerenteA, "/auditoria").andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].lojaId", everyItem(is((int) a))))
+                .andExpect(jsonPath("$[?(@.acao=='PEDIDO_CRIADO')]", hasSize(1)))
+                .andExpect(jsonPath("$[?(@.acao=='ESTOQUE_AJUSTADO')].detalhe", contains(containsString("49 -> 9"))))
+                .andExpect(jsonPath("$[?(@.acao=='LOGIN')]", not(empty())))
+                .andExpect(jsonPath("$[?(@.acao=='USUARIO_CRIADO')]", not(empty())));
+        GET(gerenteA, "/auditoria?lojaId=" + b).andExpect(status().isForbidden());
 
-    @Test
-    void pagamentoRecusadoDevolveOEstoqueUmaSoVez() throws Exception {
-        String t = novaConta("Ana");
-        int antes = estoque(3);
-        String corpo = postar(t, umItem(3, 10)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        long id = ((Number) JsonPath.read(corpo, "$.id")).longValue();
-        assertEquals(antes - 10, estoque(3));
-
-        String recusado = "{\"versao\":1,\"pedidoId\":" + id
-                + ",\"status\":\"RECUSADO\",\"motivo\":\"limite\",\"instancia\":\"caixa-1\"}";
-        listener.receber(recusado);
-        assertEquals(antes, estoque(3));
-        listener.receber(recusado); // evento repetido: não repõe de novo
-        assertEquals(antes, estoque(3));
-    }
-
-    @Test
-    void pagamentoAprovadoNaoMexeNoEstoque() throws Exception {
-        String t = novaConta("Ana");
-        String corpo = postar(t, umItem(3, 2)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        long id = ((Number) JsonPath.read(corpo, "$.id")).longValue();
-        int depois = estoque(3);
-        listener.receber("{\"versao\":1,\"pedidoId\":" + id + ",\"status\":\"APROVADO\",\"motivo\":null,\"instancia\":\"caixa-1\"}");
-        assertEquals(depois, estoque(3));
+        // o admin vê tudo e filtra por loja
+        GET(admin(), "/auditoria?lojaId=" + a + "&limite=500").andExpect(jsonPath("$[?(@.acao=='LOJA_CRIADA')]", hasSize(1)));
+        GET(admin(), "/auditoria?limite=500").andExpect(jsonPath("$[?(@.acao=='LOGIN_FALHOU')]", not(empty())));
+        GET(admin(), "/auditoria?limite=1").andExpect(jsonPath("$", hasSize(1)));
     }
 }

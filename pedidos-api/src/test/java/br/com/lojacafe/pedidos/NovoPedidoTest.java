@@ -20,7 +20,7 @@ class NovoPedidoTest {
     }
 
     private static NovoPedido pedido(NovoPedido.Item... itens) {
-        return new NovoPedido(FormaPagamento.PIX, null, null, List.of(itens));
+        return new NovoPedido(null, FormaPagamento.PIX, null, null, List.of(itens));
     }
 
     /** Nomes dos campos que a validação rejeitou (itens[0].quantidade vira "itens[0].quantidade"). */
@@ -33,7 +33,7 @@ class NovoPedidoTest {
     @Test
     void pedidoValidoPassa() {
         assertTrue(erros(pedido(item(1L, 2))).isEmpty());
-        var completo = new NovoPedido(FormaPagamento.CREDITO, 3, "sem açúcar",
+        var completo = new NovoPedido(null, FormaPagamento.CREDITO, 3, "sem açúcar",
                 List.of(new NovoPedido.Item(2L, 1, Tamanho.GRANDE, List.of(Extra.CANELA)), item(1L, 1)));
         assertTrue(erros(completo).isEmpty());
     }
@@ -48,29 +48,36 @@ class NovoPedidoTest {
 
     @Test
     void formaDePagamentoEProdutoSaoObrigatorios() {
-        assertEquals(Set.of("formaPagamento"), erros(new NovoPedido(null, null, null, List.of(item(1L, 1)))));
+        assertEquals(Set.of("formaPagamento"), erros(new NovoPedido(null, null, null, null, List.of(item(1L, 1)))));
         assertEquals(Set.of("itens[0].produtoId"), erros(pedido(item(null, 1))));
     }
 
     @Test
     void de1a10Itens() {
-        assertEquals(Set.of("itens"), erros(new NovoPedido(FormaPagamento.PIX, null, null, List.of())));
-        assertEquals(Set.of("itens"), erros(new NovoPedido(FormaPagamento.PIX, null, null, null)));
-        assertTrue(erros(new NovoPedido(FormaPagamento.PIX, null, null, Collections.nCopies(10, item(1L, 1)))).isEmpty());
-        assertEquals(Set.of("itens"), erros(new NovoPedido(FormaPagamento.PIX, null, null, Collections.nCopies(11, item(1L, 1)))));
+        assertEquals(Set.of("itens"), erros(new NovoPedido(null, FormaPagamento.PIX, null, null, List.of())));
+        assertEquals(Set.of("itens"), erros(new NovoPedido(null, FormaPagamento.PIX, null, null, null)));
+        assertTrue(erros(new NovoPedido(null, FormaPagamento.PIX, null, null, Collections.nCopies(10, item(1L, 1)))).isEmpty());
+        assertEquals(Set.of("itens"), erros(new NovoPedido(null, FormaPagamento.PIX, null, null, Collections.nCopies(11, item(1L, 1)))));
     }
 
     @Test
     void parcelasDe1a3() {
-        assertEquals(Set.of("parcelas"), erros(new NovoPedido(FormaPagamento.CREDITO, 0, null, List.of(item(1L, 1)))));
-        assertEquals(Set.of("parcelas"), erros(new NovoPedido(FormaPagamento.CREDITO, 4, null, List.of(item(1L, 1)))));
+        assertEquals(Set.of("parcelas"), erros(new NovoPedido(null, FormaPagamento.CREDITO, 0, null, List.of(item(1L, 1)))));
+        assertEquals(Set.of("parcelas"), erros(new NovoPedido(null, FormaPagamento.CREDITO, 4, null, List.of(item(1L, 1)))));
+    }
+
+    @Test
+    void clienteDoBalcaoAte60Caracteres() {
+        var itens = List.of(item(1L, 1));
+        assertTrue(erros(new NovoPedido("A".repeat(60), FormaPagamento.PIX, null, null, itens)).isEmpty());
+        assertEquals(Set.of("cliente"), erros(new NovoPedido("A".repeat(61), FormaPagamento.PIX, null, null, itens)));
     }
 
     @Test
     void limiteDaObservacao() {
-        assertTrue(erros(new NovoPedido(FormaPagamento.PIX, null, "x".repeat(140), List.of(item(1L, 1)))).isEmpty());
+        assertTrue(erros(new NovoPedido(null, FormaPagamento.PIX, null, "x".repeat(140), List.of(item(1L, 1)))).isEmpty());
         assertEquals(Set.of("observacao"),
-                erros(new NovoPedido(FormaPagamento.PIX, null, "x".repeat(141), List.of(item(1L, 1)))));
+                erros(new NovoPedido(null, FormaPagamento.PIX, null, "x".repeat(141), List.of(item(1L, 1)))));
     }
 
     @Test

@@ -18,14 +18,21 @@ class PedidoTest {
         return p;
     }
 
-    private static final Usuario ANA = new Usuario("Ana", "ana@exemplo.com", "hash");
+    private static final Loja LOJA = lojaDeId(7L);
+    private static final Usuario ANA = new Usuario("Ana", "ana@exemplo.com", "hash", Papel.ATENDENTE, LOJA);
+
+    private static Loja lojaDeId(long id) {
+        Loja l = new Loja("Matriz");
+        ReflectionTestUtils.setField(l, "id", id);
+        return l;
+    }
 
     private static ItemPedido item(String preco, int qtd, Tamanho tamanho, List<Extra> extras) {
         return new ItemPedido(produto("Café coado", preco), qtd, tamanho, extras);
     }
 
     private Pedido novo() {
-        return new Pedido(ANA, FormaPagamento.PIX, null, null, List.of(item("8.50", 2, null, null)));
+        return new Pedido(ANA, null, FormaPagamento.PIX, null, null, List.of(item("8.50", 2, null, null)));
     }
 
     private static void assertValor(String esperado, BigDecimal atual) {
@@ -39,7 +46,9 @@ class PedidoTest {
         assertValor("8.50", p.getItens().get(0).getPrecoUnitario());
         assertEquals(StatusPedido.AGUARDANDO_PAGAMENTO, p.getStatus());
         assertEquals(Tamanho.MEDIO, p.getItens().get(0).getTamanho());
-        assertEquals("Ana", p.getCliente());
+        assertEquals("Balcão", p.getCliente()); // sem nome do cliente, vale "Balcão"
+        assertEquals("Ana", p.getAtendente());
+        assertEquals(7L, p.getLojaId());
         assertNotNull(p.getCriadoEm());
     }
 
@@ -56,7 +65,7 @@ class PedidoTest {
 
     @Test
     void valorDoPedidoESomaDosItens() {
-        Pedido p = new Pedido(ANA, FormaPagamento.DEBITO, null, "  sem açúcar ",
+        Pedido p = new Pedido(ANA, null, FormaPagamento.DEBITO, null, "  sem açúcar ",
                 List.of(item("8.50", 2, null, null), item("6.00", 1, Tamanho.GRANDE, List.of(Extra.CANELA))));
         // 2 × 8,50 = 17,00; 1 × (6,00 + 3,00 + 0,50) = 9,50
         assertValor("26.50", p.getValor());
@@ -69,14 +78,14 @@ class PedidoTest {
         var repetido = item("8.00", 1, null, List.of(Extra.CHANTILLY, Extra.CHANTILLY));
         assertEquals(List.of(Extra.CHANTILLY), repetido.getExtras());
         assertValor("10.00", repetido.getValor());
-        assertNull(new Pedido(ANA, FormaPagamento.PIX, null, "   ", List.of(repetido)).getObservacao());
+        assertNull(new Pedido(ANA, null, FormaPagamento.PIX, null, "   ", List.of(repetido)).getObservacao());
     }
 
     @Test
     void parcelasSoExistemNoCredito() {
-        assertEquals(1, new Pedido(ANA, FormaPagamento.PIX, 3, null, List.of(item("8.00", 1, null, null))).getParcelas());
-        assertEquals(3, new Pedido(ANA, FormaPagamento.CREDITO, 3, null, List.of(item("8.00", 1, null, null))).getParcelas());
-        assertEquals(1, new Pedido(ANA, FormaPagamento.CREDITO, null, null, List.of(item("8.00", 1, null, null))).getParcelas());
+        assertEquals(1, new Pedido(ANA, null, FormaPagamento.PIX, 3, null, List.of(item("8.00", 1, null, null))).getParcelas());
+        assertEquals(3, new Pedido(ANA, null, FormaPagamento.CREDITO, 3, null, List.of(item("8.00", 1, null, null))).getParcelas());
+        assertEquals(1, new Pedido(ANA, null, FormaPagamento.CREDITO, null, null, List.of(item("8.00", 1, null, null))).getParcelas());
     }
 
     @Test

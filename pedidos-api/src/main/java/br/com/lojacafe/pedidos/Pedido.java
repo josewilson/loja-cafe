@@ -14,10 +14,12 @@ public class Pedido {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    // Dono do pedido (quem fez login). Nulo só nos pedidos anteriores ao login.
+    // Quem lançou o pedido (o atendente) e em que loja. O `cliente` é o nome dito no balcão.
     @ManyToOne(fetch = FetchType.LAZY)
     @JsonIgnore
     private Usuario usuario;
+    private Long lojaId;
+    private String atendente;
     private String cliente;
     @Enumerated(EnumType.STRING)
     private FormaPagamento formaPagamento;
@@ -41,10 +43,12 @@ public class Pedido {
         // exigido pelo JPA
     }
 
-    /** valor = soma dos itens (cada item já vem calculado). Parcelas só existem no crédito. */
-    public Pedido(Usuario usuario, FormaPagamento forma, Integer parcelas, String observacao, List<ItemPedido> itens) {
-        this.usuario = usuario;
-        this.cliente = usuario.getNome();
+    /** valor = soma dos itens (cada item já vem calculado). Parcelas só existem no crédito. A loja é a de quem lança. */
+    public Pedido(Usuario atendente, String cliente, FormaPagamento forma, Integer parcelas, String observacao, List<ItemPedido> itens) {
+        this.usuario = atendente;
+        this.lojaId = atendente.getLojaId();
+        this.atendente = atendente.getNome();
+        this.cliente = cliente == null || cliente.isBlank() ? "Balcão" : cliente.trim();
         this.formaPagamento = forma;
         this.parcelas = forma == FormaPagamento.CREDITO && parcelas != null ? parcelas : 1;
         this.itens = new ArrayList<>(itens);
@@ -66,6 +70,8 @@ public class Pedido {
     }
 
     public Long getId() { return id; }
+    public Long getLojaId() { return lojaId; }
+    public String getAtendente() { return atendente; }
     public String getCliente() { return cliente; }
     public FormaPagamento getFormaPagamento() { return formaPagamento; }
     public Integer getParcelas() { return parcelas; }

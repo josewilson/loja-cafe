@@ -14,7 +14,7 @@ public class PedidoEventos {
 
     record ItemEvento(String item, int quantidade) {}
 
-    record PedidoCriado(int versao, Long pedidoId, String cliente, List<ItemEvento> itens, BigDecimal valor,
+    record PedidoCriado(int versao, Long pedidoId, Long lojaId, String cliente, List<ItemEvento> itens, BigDecimal valor,
                         FormaPagamento formaPagamento, Integer parcelas, Instant criadoEm) {}
 
     private final KafkaTemplate<String, String> kafka;
@@ -27,7 +27,7 @@ public class PedidoEventos {
 
     public void publicarCriado(Pedido p) throws Exception {
         var itens = p.getItens().stream().map(i -> new ItemEvento(i.getItem(), i.getQuantidade())).toList();
-        var evento = new PedidoCriado(2, p.getId(), p.getCliente(), itens, p.getValor(),
+        var evento = new PedidoCriado(3, p.getId(), p.getLojaId(), p.getCliente(), itens, p.getValor(),
                 p.getFormaPagamento(), p.getParcelas(), p.getCriadoEm());
         // Chave = pedidoId: todos os eventos do mesmo pedido caem na mesma partição.
         // .get() espera o "ok" do broker; se o Kafka estiver fora, a falha aparece aqui.

@@ -25,12 +25,13 @@ public class CorsConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**").allowedOrigins(origem).allowedMethods("GET", "POST").allowedHeaders("Authorization", "Content-Type");
+        registry.addMapping("/**").allowedOrigins(origem).allowedMethods("GET", "POST", "PUT").allowedHeaders("Authorization", "Content-Type");
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(autenticacao).addPathPatterns("/pedidos/**", "/pedidos");
+        // Tudo exige login, menos o próprio login, as opções (tamanhos/extras/pagamentos) e a página de erro.
+        registry.addInterceptor(autenticacao).addPathPatterns("/**").excludePathPatterns("/auth/entrar", "/opcoes", "/error");
         registry.addInterceptor(new HandlerInterceptor() {
             @Override
             public boolean preHandle(HttpServletRequest req, HttpServletResponse res, Object handler) {

@@ -6,6 +6,7 @@ import java.util.List;
 
 /** Corpo do POST /pedidos (specs/api.md). O preço NÃO vem do cliente: a API calcula. */
 public record NovoPedido(
+        @Size(max = 60) String cliente,
         @NotNull FormaPagamento formaPagamento,
         @Min(1) @Max(3) Integer parcelas,
         @Size(max = 140) String observacao,
