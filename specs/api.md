@@ -89,12 +89,13 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 [ { "id": 9, "quando": "2026-10-17T16:05:00Z", "usuarioId": 3, "lojaId": 1, "acao": "PEDIDO_CRIADO", "entidade": "Pedido", "entidadeId": "12", "detalhe": "valor 35.00" } ]
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
-`PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`.
+`PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`
+(as duas últimas são da rede, sem loja: só o `ADMIN` as vê na auditoria).
 
 ## Cardápio e pedidos (exigem token)
 
 ### GET /produtos
-Cardápio da rede, na ordem de `id`, com o `estoque` **da loja do usuário**. O `ADMIN` (sem loja) informa `?lojaId=`. Resposta `200`:
+Cardápio da rede (só os produtos **ativos**), na ordem de `id`, com o `estoque` **da loja do usuário**. O `ADMIN` (sem loja) informa `?lojaId=`. Resposta `200`:
 ```json
 [ { "id": 1, "nome": "Café coado", "descricao": "Filtrado na hora, grão da casa", "emoji": "☕", "preco": 8.50, "estoque": 50 } ]
 ```
@@ -105,7 +106,7 @@ Corpo:
 { "cliente": "Ana", "formaPagamento": "CREDITO", "parcelas": 2, "observacao": "sem açúcar",
   "itens": [ { "produtoId": 2, "quantidade": 2, "tamanho": "GRANDE", "extras": ["CHANTILLY", "CANELA"] } ] }
 ```
-- Obrigatórios: `formaPagamento`; `itens` (de 1 a 10); em cada item, `produtoId` (existente em `/produtos`) e `quantidade` (1 a 50).
+- Obrigatórios: `formaPagamento`; `itens` (de 1 a 10); em cada item, `produtoId` (existente e ativo em `/produtos`; produto desativado: `400`) e `quantidade` (1 a 50).
 - Opcionais: `cliente` (nome dito no balcão, até 60; padrão `"Balcão"`), `parcelas` (1 a 3, só com `CREDITO`; padrão 1),
   `observacao` (até 140), e por item `tamanho` (padrão `MEDIO`) e `extras` (até 5; repetido conta uma vez).
 - O pedido nasce na loja de quem lança (`atendente` = o usuário). Campos que não existem aqui (por exemplo `precoUnitario`) são ignorados.
@@ -127,6 +128,26 @@ Pedidos **da loja do usuário**, **mais novo primeiro** (padrão 100, de 1 a 200
 ]
 ```
 `item` é o nome do produto no momento do pedido.
+
+## Cardápio da rede (`ADMIN`)
+Quem edita o cardápio é só o `ADMIN`, porque ele é da rede: o preço muda em todas as lojas. O gerente cuida do estoque da própria loja.
+
+### GET /cardapio
+Todos os produtos, **inclusive os desativados**, na ordem de `id`. Sem estoque (o estoque é de cada loja). Resposta `200`:
+```json
+[ { "id": 1, "nome": "Café coado", "descricao": "Filtrado na hora, grão da casa", "emoji": "☕", "preco": 8.50, "ativo": true } ]
+```
+
+### POST /cardapio
+Corpo: `{ "nome": "Pão na chapa", "descricao": "Com manteiga", "emoji": "🥖", "preco": 7.00 }`.
+- `nome` obrigatório, até 60, **único** sem diferenciar maiúsculas (repetido: `409`); `descricao` opcional, até 140; `emoji` obrigatório, até 16 caracteres;
+  `preco` obrigatório, maior que 0 e até 10000,00, com no máximo 2 casas decimais.
+- `201` com o produto (`ativo: true`). Nasce com **estoque 0 em todas as lojas**: cada gerente ajusta o da sua (`PUT /lojas/{id}/estoque/{produtoId}`).
+
+### PUT /cardapio/{id}
+Mesmo corpo do `POST` mais `"ativo": true|false`. `200` com o produto. Inexistente: `404`; nome de outro produto: `409`.
+- O **preço novo vale só para pedidos novos**: pedidos já feitos guardam o preço que usaram.
+- Produto **desativado** some do `GET /produtos` (balcão) e não aceita pedido novo, mas continua nos pedidos antigos e nos relatórios.
 
 ## Cozinha, retirada e cancelamento
 `preparo` é o andamento na loja e é **independente** do `status` (que é só o pagamento). Todo pedido nasce `NA_FILA`.
