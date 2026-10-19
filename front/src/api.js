@@ -83,3 +83,10 @@ export const listarProdutos = () => pedir('/produtos')
 export const listarOpcoes = () => pedir('/opcoes')
 export const listarPedidos = (limite = 20) => pedir(`/pedidos?limite=${limite}`)
 export const criarPedido = (pedido) => enviar('/pedidos', pedido)
+
+const alterar = (caminho, corpo) =>
+  pedir(caminho, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
+
+export const listarCozinha = () => pedir('/cozinha')
+export const mudarPreparo = (id, preparo) => alterar(`/pedidos/${id}/preparo`, { preparo })
+export const cancelarPedido = (id, motivo) => alterar(`/pedidos/${id}/cancelar`, motivo ? { motivo } : {})

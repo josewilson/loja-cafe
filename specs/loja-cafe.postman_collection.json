@@ -5,29 +5,54 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8081" },
-    { "key": "pagamentosUrl", "value": "http://localhost:5001" },
-    { "key": "token", "value": "cole-o-token-aqui" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "pagamentosUrl",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "token",
+      "value": "cole-o-token-aqui"
+    }
   ],
   "item": [
     {
       "name": "GET /opcoes (público)",
-      "request": { "method": "GET", "url": "{{baseUrl}}/opcoes" }
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/opcoes"
+      }
     },
     {
       "name": "POST /auth/entrar (ADMIN do infra/.env ou qualquer conta)",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "url": "{{baseUrl}}/auth/entrar",
-        "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@loja-cafe.local\",\n  \"senha\": \"a-senha-do-ADMIN_PASSWORD\"\n}" }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@loja-cafe.local\",\n  \"senha\": \"a-senha-do-ADMIN_PASSWORD\"\n}"
+        }
       }
     },
     {
       "name": "POST /auth/sair",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
         "url": "{{baseUrl}}/auth/sair"
       }
     },
@@ -35,7 +60,12 @@
       "name": "GET /lojas (ADMIN)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
         "url": "{{baseUrl}}/lojas"
       }
     },
@@ -44,11 +74,20 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
         ],
         "url": "{{baseUrl}}/lojas",
-        "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Centro\",\n  \"estoqueInicial\": 20\n}" }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Centro\",\n  \"estoqueInicial\": 20\n}"
+        }
       }
     },
     {
@@ -56,18 +95,32 @@
       "request": {
         "method": "PUT",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
         ],
         "url": "{{baseUrl}}/lojas/1/estoque/2",
-        "body": { "mode": "raw", "raw": "{\n  \"quantidade\": 40\n}" }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"quantidade\": 40\n}"
+        }
       }
     },
     {
       "name": "GET /usuarios (ADMIN ou GERENTE)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
         "url": "{{baseUrl}}/usuarios"
       }
     },
@@ -76,11 +129,20 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
         ],
         "url": "{{baseUrl}}/usuarios",
-        "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Bia\",\n  \"email\": \"bia@loja.com\",\n  \"senha\": \"segredo123\",\n  \"papel\": \"ATENDENTE\",\n  \"lojaId\": 1\n}" }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Bia\",\n  \"email\": \"bia@loja.com\",\n  \"senha\": \"segredo123\",\n  \"papel\": \"ATENDENTE\",\n  \"lojaId\": 1\n}"
+        }
       }
     },
     {
@@ -88,18 +150,32 @@
       "request": {
         "method": "PUT",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
         ],
         "url": "{{baseUrl}}/usuarios/2/ativo",
-        "body": { "mode": "raw", "raw": "{\n  \"ativo\": false\n}" }
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"ativo\": false\n}"
+        }
       }
     },
     {
       "name": "GET /produtos (cardápio e estoque da sua loja; ADMIN usa ?lojaId=1)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
         "url": "{{baseUrl}}/produtos"
       }
     },
@@ -108,8 +184,14 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
         ],
         "url": "{{baseUrl}}/pedidos",
         "body": {
@@ -123,8 +205,14 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
         ],
         "url": "{{baseUrl}}/pedidos",
         "body": {
@@ -138,8 +226,14 @@
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
         ],
         "url": "{{baseUrl}}/pedidos",
         "body": {
@@ -152,25 +246,96 @@
       "name": "GET /pedidos?limite=10 (da sua loja; ADMIN vê todas)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
         "url": "{{baseUrl}}/pedidos?limite=10"
+      }
+    },
+    {
+      "name": "GET /cozinha (fila da loja: pedidos PAGO ainda não retirados)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/cozinha"
+      }
+    },
+    {
+      "name": "PUT /pedidos/1/preparo (COZINHA: PREPARANDO ou PRONTO; ATENDENTE: RETIRADO)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/pedidos/1/preparo",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"preparo\": \"PREPARANDO\"\n}"
+        }
+      }
+    },
+    {
+      "name": "PUT /pedidos/1/cancelar (GERENTE)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/pedidos/1/cancelar",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"motivo\": \"cliente desistiu\"\n}"
+        }
       }
     },
     {
       "name": "GET /auditoria (ADMIN ou GERENTE)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
         "url": "{{baseUrl}}/auditoria?limite=50"
       }
     },
     {
       "name": "Pagamentos · GET /saude",
-      "request": { "method": "GET", "url": "{{pagamentosUrl}}/saude" }
+      "request": {
+        "method": "GET",
+        "url": "{{pagamentosUrl}}/saude"
+      }
     },
     {
       "name": "Pagamentos · GET /pagamentos (decisões desta instância)",
-      "request": { "method": "GET", "url": "{{pagamentosUrl}}/pagamentos" }
+      "request": {
+        "method": "GET",
+        "url": "{{pagamentosUrl}}/pagamentos"
+      }
     }
   ]
 }

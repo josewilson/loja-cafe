@@ -92,4 +92,35 @@ N_B=$(chamar "$ADMIN" GET "/pedidos?lojaId=$LOJA_B" | json "d.length")
   || falhar "auditoria sem PEDIDO_CRIADO da loja A"
 ok "pedidos isolados e auditoria ok"
 
+echo "9. Cozinha: só o pedido PAGO está na fila; cada papel dá o seu passo"
+criar_usuario() { # criar_usuario <papel> -> imprime o token de uma conta nova na loja A
+  local e="e2e-$1-$SUFIXO@exemplo.com"
+  chamar "$ADMIN" POST /usuarios "{\"nome\":\"E2E $1\",\"email\":\"$e\",\"senha\":\"segredo123\",\"papel\":\"$1\",\"lojaId\":$LOJA_A}" > /dev/null
+  entrar "$e" segredo123
+}
+COZINHA=$(criar_usuario COZINHA)
+GERENTE=$(criar_usuario GERENTE)
+[ "$(chamar "$COZINHA" GET /cozinha | json "d.map(p => p.id).join()")" = "$ID_PIX" ] \
+  || falhar "a fila deveria ter só o pedido $ID_PIX (o recusado não entra)"
+mudar() { chamar "$1" PUT "/pedidos/$2/preparo" "{\"preparo\":\"$3\"}" | json "d.preparo"; }
+[ "$(mudar "$COZINHA" "$ID_PIX" PREPARANDO)" = "PREPARANDO" ] || falhar "cozinha deveria iniciar o preparo"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/pedidos/$ID_PIX/preparo" -H "Authorization: Bearer $ATENDENTE" -H 'Content-Type: application/json' -d '{"preparo":"PRONTO"}')" = "403" ] \
+  || falhar "atendente não deveria marcar PRONTO (403)"
+[ "$(mudar "$COZINHA" "$ID_PIX" PRONTO)" = "PRONTO" ] || falhar "cozinha deveria marcar PRONTO"
+[ "$(mudar "$ATENDENTE" "$ID_PIX" RETIRADO)" = "RETIRADO" ] || falhar "atendente deveria marcar RETIRADO"
+[ "$(chamar "$COZINHA" GET /cozinha | json "d.length")" = "0" ] || falhar "depois de retirado a fila deveria esvaziar"
+ok "fila -> PREPARANDO (cozinha) -> PRONTO (cozinha) -> RETIRADO (atendente) -> fila vazia"
+
+echo "10. Cancelamento: só o gerente, e o estoque volta"
+ID_CANC=$(pedir "$ATENDENTE" PIX)
+aguardar_status "$ATENDENTE" "$ID_CANC" PAGO
+[ "$(estoque_do_cappuccino "$ATENDENTE")" = "32" ] || falhar "o novo pedido deveria ter baixado o estoque para 32"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/pedidos/$ID_CANC/cancelar" -H "Authorization: Bearer $ATENDENTE" -H 'Content-Type: application/json' -d '{}')" = "403" ] \
+  || falhar "atendente não cancela (403)"
+[ "$(chamar "$GERENTE" PUT "/pedidos/$ID_CANC/cancelar" '{"motivo":"teste e2e"}' | json "d.preparo")" = "CANCELADO" ] || falhar "gerente deveria cancelar"
+[ "$(estoque_do_cappuccino "$ATENDENTE")" = "41" ] || falhar "o cancelamento deveria devolver o estoque (41)"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$API/pedidos/$ID_CANC/cancelar" -H "Authorization: Bearer $GERENTE" -H 'Content-Type: application/json' -d '{}')" = "409" ] \
+  || falhar "cancelar de novo deveria dar 409"
+ok "cancelado, estoque de volta a 41, segundo cancelamento 409"
+
 echo "TUDO CERTO"

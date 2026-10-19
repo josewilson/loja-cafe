@@ -241,3 +241,22 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
 
 /* Campos empilhados dentro de um cartão ganham respiro */
 .cartao .campo + .campo, .cartao .grupo + .campo { margin-top: 14px; }
+
+/* Abas, fila da cozinha, cancelamento */
+.abas { display: flex; gap: 6px; padding: 4px; border-radius: 99px; background: var(--fundo-2); }
+.aba { border: 0; background: transparent; padding: 8px 16px; border-radius: 99px; font-weight: 600; cursor: pointer; color: var(--suave); }
+.aba.ativa { background: var(--cartao); color: var(--tinta); box-shadow: var(--sombra); }
+.quadro { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
+.coluna-fila { min-height: 220px; }
+.coluna-fila .pedido-topo { align-items: baseline; }
+.espera { margin-left: auto; }
+.acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.acoes .botao { padding: 10px 14px; font-size: .92rem; }
+.botao.perigo { background: transparent; color: var(--perigo); border: 2px solid var(--perigo); }
+.pedido.CANCELADO { border-left-color: var(--suave); opacity: .75; }
+.status.CANCELADO, .status.RETIRADO { background: var(--fundo-2); color: var(--suave); }
+.status.NA_FILA { background: var(--aviso-fundo); color: var(--aviso); }
+.status.PREPARANDO { background: #e0e9fb; color: #1f3d7a; }
+.status.PRONTO { background: var(--ok-fundo); color: var(--ok); }
+@media (prefers-color-scheme: dark) { .status.PREPARANDO { background: #1d2a47; color: #aac4ff; } }
+@media (max-width: 860px) { .quadro { grid-template-columns: 1fr; } }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { criarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
+import { cancelarPedido, criarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
+import Topo from './Topo'
 
 const reais = (n) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
@@ -9,10 +10,16 @@ const ROTULO = {
   RECUSADO: 'Recusado',
 }
 
-const PAPEL = { ADMIN: "Administrador", GERENTE: "Gerente", ATENDENTE: "Atendente", COZINHA: "Cozinha" }
+const PREPARO = {
+  NA_FILA: 'Na fila',
+  PREPARANDO: 'Preparando',
+  PRONTO: 'Pronto para retirar',
+  RETIRADO: 'Retirado',
+  CANCELADO: 'Cancelado',
+}
 
-export default function Loja({ sessao, aoSair }) {
-  const { nome, papel, lojaNome } = sessao
+export default function Loja({ sessao, aoSair, topo }) {
+  const { papel } = sessao
   // Só atendente e gerente lançam pedidos (e só eles têm estoque de uma loja para mostrar).
   const podePedir = papel === "ATENDENTE" || papel === "GERENTE"
 
@@ -121,6 +128,19 @@ export default function Loja({ sessao, aoSair }) {
     setRecebido(null)
   }
 
+  // Só o gerente cancela, e só até ficar pronto (o servidor confere). O estoque volta.
+  async function cancelar(p) {
+    if (!window.confirm(`Cancelar o pedido #${p.id} de ${p.cliente}? O estoque volta.`)) return
+    setErro(null)
+    try {
+      await cancelarPedido(p.id)
+      setPedidos(await listarPedidos(20))
+    } catch (falha) {
+      if (falha.status === 401) return aoSair()
+      setErro(falha)
+    }
+  }
+
   async function enviar(e) {
     e.preventDefault()
     if (carrinho.length === 0) return
@@ -153,22 +173,7 @@ export default function Loja({ sessao, aoSair }) {
 
   return (
     <>
-      <header className="topo">
-        <div className="marca">
-          <span className="logo" aria-hidden="true">☕</span>
-          <div>
-            <h1>Loja Café</h1>
-            <p>Feito na hora. Pago em segundos.</p>
-          </div>
-        </div>
-        <div className="topo-direita">
-          <span className={offline ? 'conexao fora' : 'conexao'} role="status">
-            <i aria-hidden="true" /> {offline ? 'API fora do ar' : 'API conectada'}
-          </span>
-          <span className="ola">Olá, <strong>{nome}</strong> · {PAPEL[papel]} · {lojaNome ?? 'Rede toda'}</span>
-          <button type="button" className="link" onClick={aoSair}>Sair</button>
-        </div>
-      </header>
+      <Topo {...topo} offline={offline} />
 
       <main>
         {catalogoErro && (
@@ -416,7 +421,7 @@ export default function Loja({ sessao, aoSair }) {
           {pedidos.length === 0 && <p className="vazio">Nenhum pedido ainda. Faça o primeiro acima. ☕</p>}
           <ul className="pedidos" aria-live="polite">
             {pedidos.map((p) => (
-              <li key={p.id} className={`pedido ${p.status}`}>
+              <li key={p.id} className={`pedido ${p.preparo === 'CANCELADO' ? 'CANCELADO' : p.status}`}>
                 <div className="pedido-topo">
                   <span className="id">#{p.id}</span>
                   <strong>{p.cliente}</strong>
@@ -424,7 +429,14 @@ export default function Loja({ sessao, aoSair }) {
                     {p.parcelas > 1 && ` em ${p.parcelas}×`}</small>
                   {papel === 'ADMIN' && <span className="tag">Loja {p.lojaId}</span>}
                   <span className="valor">{reais(p.valor)}</span>
-                  <span className={`status ${p.status}`}>{ROTULO[p.status] ?? p.status}</span>
+                  {p.preparo === 'CANCELADO' ? (
+                    <span className="status CANCELADO">Cancelado</span>
+                  ) : (
+                    <>
+                      <span className={`status ${p.status}`}>{ROTULO[p.status] ?? p.status}</span>
+                      {p.status === 'PAGO' && <span className={`status ${p.preparo}`}>{PREPARO[p.preparo]}</span>}
+                    </>
+                  )}
                 </div>
                 {p.itens.map((i, n) => (
                   <p key={n} className="pedido-item">
@@ -445,6 +457,11 @@ export default function Loja({ sessao, aoSair }) {
                   </span>
                   {p.processadoPor && <span className="caixa">{p.processadoPor}</span>}
                 </div>
+                {papel === 'GERENTE' && p.status !== 'RECUSADO' && (p.preparo === 'NA_FILA' || p.preparo === 'PREPARANDO') && (
+                  <div className="acoes">
+                    <button type="button" className="botao perigo" onClick={() => cancelar(p)}>Cancelar pedido</button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
