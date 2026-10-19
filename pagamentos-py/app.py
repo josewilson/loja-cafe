@@ -29,12 +29,23 @@ ATRASO = 3  # segundos "falando com o banco" (os testes zeram isto)
 ouvinte = None  # a thread que lê o Kafka; /saude olha se ela ainda está viva
 
 
-def decidir(valor):
+# Regra de cada forma (specs/api.md): fração do ATRASO que ela espera e se tem limite de valor.
+# Forma ausente (evento v1) ou desconhecida cai na regra do crédito.
+REGRAS = {
+    "PIX": {"espera": 1 / 3, "limite": False},
+    "CREDITO": {"espera": 1, "limite": True},
+    "DEBITO": {"espera": 1, "limite": True},
+    "DINHEIRO": {"espera": 0, "limite": False},  # paga no balcão: aprova na hora
+}
+
+
+def decidir(valor, forma=None):
     """Regra de negócio: devolve (status, motivo)."""
-    time.sleep(ATRASO)  # finge que está falando com o banco
-    if valor <= LIMITE:
-        return "APROVADO", None
-    return "RECUSADO", "limite do cartão de teste"
+    regra = REGRAS.get(forma, REGRAS["CREDITO"])
+    time.sleep(ATRASO * regra["espera"])  # finge que está falando com o banco
+    if regra["limite"] and valor > LIMITE:
+        return "RECUSADO", "limite do cartão de teste"
+    return "APROVADO", None
 
 
 def resultado_do_evento(texto):
@@ -48,7 +59,7 @@ def resultado_do_evento(texto):
     valor = float(pedido["valor"])
     if not 0 <= valor < float("inf"):  # também rejeita NaN
         raise ValueError(f"valor inválido: {pedido['valor']!r}")
-    status, motivo = decidir(valor)
+    status, motivo = decidir(valor, pedido.get("formaPagamento"))
     return {
         "versao": 1,
         "pedidoId": pedido_id,

@@ -17,6 +17,29 @@ class RegraDeNegocio(unittest.TestCase):
         self.assertEqual(app.decidir(170.0), ("RECUSADO", "limite do cartão de teste"))
 
 
+class FormasDePagamento(unittest.TestCase):
+    def test_pix_e_dinheiro_nao_tem_limite(self):
+        for forma in ("PIX", "DINHEIRO"):
+            with self.subTest(forma=forma):
+                self.assertEqual(app.decidir(5000.0, forma), ("APROVADO", None))
+
+    def test_cartoes_recusam_acima_de_100(self):
+        for forma in ("CREDITO", "DEBITO"):
+            with self.subTest(forma=forma):
+                self.assertEqual(app.decidir(100.0, forma), ("APROVADO", None))
+                self.assertEqual(app.decidir(100.01, forma), ("RECUSADO", "limite do cartão de teste"))
+
+    def test_forma_ausente_ou_desconhecida_vale_como_credito(self):
+        self.assertEqual(app.decidir(170.0, None)[0], "RECUSADO")
+        self.assertEqual(app.decidir(170.0, "FIADO")[0], "RECUSADO")
+
+    def test_evento_v2_usa_a_forma_do_pedido(self):
+        r = app.resultado_do_evento(json.dumps({"pedidoId": 7, "valor": 250.0, "formaPagamento": "PIX"}))
+        self.assertEqual(r["status"], "APROVADO")
+        r = app.resultado_do_evento(json.dumps({"pedidoId": 8, "valor": 250.0, "formaPagamento": "DEBITO"}))
+        self.assertEqual(r["status"], "RECUSADO")
+
+
 class EventoDePedido(unittest.TestCase):
     def test_evento_valido_vira_resultado(self):
         r = app.resultado_do_evento(json.dumps({"pedidoId": 12, "valor": 17.0}))

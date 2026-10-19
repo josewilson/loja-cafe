@@ -29,7 +29,8 @@ def mostrar_painel():
     faturamento = sum(p["valor"] for p in pagos)
     vendidos = Counter()
     for p in pagos:
-        vendidos[p["item"]] += p["quantidade"]
+        for i in p["itens"]:
+            vendidos[i["item"]] += i["quantidade"]
     campeao = "%s (%d)" % vendidos.most_common(1)[0] if vendidos else "-"
     print(f"📊 pedidos vistos: {len(pedidos)} · pagos: {len(pagos)} · "
           f"faturamento: R$ {faturamento:.2f} · mais vendido: {campeao}\n", flush=True)
@@ -46,7 +47,9 @@ try:
             evento = json.loads(msg.value())
             pedido = pedidos.setdefault(evento["pedidoId"], {})
             if msg.topic() == "pedidos-criados":
-                pedido.update(item=evento["item"], quantidade=evento["quantidade"], valor=float(evento["valor"]))
+                # v2 traz "itens"; evento v1 (antigo) traz "item" e "quantidade" soltos.
+                itens = evento.get("itens") or [{"item": evento["item"], "quantidade": evento["quantidade"]}]
+                pedido.update(itens=itens, valor=float(evento["valor"]))
             else:
                 # Igual à pedidos-api: vale o primeiro resultado; repetição não muda nada.
                 pedido.setdefault("status", evento["status"])
