@@ -24,12 +24,38 @@ processados = []  # o que ESTA instância decidiu desde que subiu (fica só na m
 parar = threading.Event()
 
 
+ATRASO = 3  # segundos "falando com o banco" (os testes zeram isto)
+ouvinte = None  # a thread que lê o Kafka; /saude olha se ela ainda está viva
+
+
 def decidir(valor):
     """Regra de negócio: devolve (status, motivo)."""
-    time.sleep(3)  # finge que está falando com o banco
+    time.sleep(ATRASO)  # finge que está falando com o banco
     if valor <= LIMITE:
         return "APROVADO", None
     return "RECUSADO", "limite do cartão de teste"
+
+
+def resultado_do_evento(texto):
+    """Lê um evento de pedidos-criados e devolve o resultado a publicar.
+
+    Evento quebrado (JSON ruim, sem pedidoId/valor, valor negativo ou NaN) levanta
+    ValueError/KeyError/TypeError: quem chama registra e segue, sem derrubar a thread.
+    """
+    pedido = json.loads(texto)
+    pedido_id = pedido["pedidoId"]
+    valor = float(pedido["valor"])
+    if not 0 <= valor < float("inf"):  # também rejeita NaN
+        raise ValueError(f"valor inválido: {pedido['valor']!r}")
+    status, motivo = decidir(valor)
+    return {
+        "versao": 1,
+        "pedidoId": pedido_id,
+        "status": status,
+        "motivo": motivo,
+        "instancia": INSTANCIA,
+        "processadoEm": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 def ouvir_kafka():
@@ -54,22 +80,19 @@ def ouvir_kafka():
             print(f"[{INSTANCIA}] erro do Kafka: {msg.error()}", flush=True)
             continue
 
-        pedido = json.loads(msg.value())
-        status, motivo = decidir(float(pedido["valor"]))
-        resultado = {
-            "versao": 1,
-            "pedidoId": pedido["pedidoId"],
-            "status": status,
-            "motivo": motivo,
-            "instancia": INSTANCIA,
-            "processadoEm": datetime.now(timezone.utc).isoformat(),
-        }
+        try:
+            resultado = resultado_do_evento(msg.value())
+        except (ValueError, KeyError, TypeError) as erro:
+            # Evento quebrado não pode parar o caixa: registra, pula e segue com o próximo.
+            print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · "
+                  f"evento inválido ignorado ({erro!r})", flush=True)
+            continue
         # Mesma chave (pedidoId) do evento de entrada.
-        produtor.produce("pagamentos-resultados", key=str(pedido["pedidoId"]), value=json.dumps(resultado))
+        produtor.produce("pagamentos-resultados", key=str(resultado["pedidoId"]), value=json.dumps(resultado))
         produtor.flush()
         processados.append(resultado)
         print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · "
-              f"pedido {pedido['pedidoId']} -> {status}", flush=True)
+              f"pedido {resultado['pedidoId']} -> {resultado['status']}", flush=True)
 
     consumidor.close()  # sai do grupo na hora; as partições vão para outra instância
 
@@ -81,11 +104,14 @@ def listar():
 
 @app.get("/saude")
 def saude():
-    return jsonify(ok=True, instancia=INSTANCIA)
+    # Se a thread do Kafka morreu, o caixa não está pagando nada: não diga que está tudo bem.
+    vivo = ouvinte is not None and ouvinte.is_alive()
+    return jsonify(ok=vivo, instancia=INSTANCIA), (200 if vivo else 503)
 
 
 if __name__ == "__main__":
-    threading.Thread(target=ouvir_kafka, daemon=True).start()
+    ouvinte = threading.Thread(target=ouvir_kafka, daemon=True)
+    ouvinte.start()
     try:
         # use_reloader=False: o recarregador do Flask subiria o consumidor DUAS vezes.
         app.run(port=PORTA, use_reloader=False)
