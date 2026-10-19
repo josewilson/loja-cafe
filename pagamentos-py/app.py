@@ -7,6 +7,7 @@ import json
 import os
 import threading
 import time
+from collections import deque
 from datetime import datetime, timezone
 
 from confluent_kafka import Consumer, Producer
@@ -20,7 +21,7 @@ IPV4 = {"broker.address.family": "v4"}
 LIMITE = 100.00  # acima disso, o "cartão de teste" recusa
 
 app = Flask(__name__)
-processados = []  # o que ESTA instância decidiu desde que subiu (fica só na memória)
+processados = deque(maxlen=200)  # últimas decisões DESTA instância (só memória; não cresce sem limite)
 parar = threading.Event()
 
 
@@ -99,7 +100,7 @@ def ouvir_kafka():
 
 @app.get("/pagamentos")
 def listar():
-    return jsonify(processados)
+    return jsonify(list(processados))
 
 
 @app.get("/saude")

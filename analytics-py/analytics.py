@@ -30,7 +30,7 @@ def mostrar_painel():
     vendidos = Counter()
     for p in pagos:
         vendidos[p["item"]] += p["quantidade"]
-    campeao = f"{vendidos.most_common(1)[0][0]} ({vendidos.most_common(1)[0][1]})" if vendidos else "-"
+    campeao = "%s (%d)" % vendidos.most_common(1)[0] if vendidos else "-"
     print(f"📊 pedidos vistos: {len(pedidos)} · pagos: {len(pagos)} · "
           f"faturamento: R$ {faturamento:.2f} · mais vendido: {campeao}\n", flush=True)
 

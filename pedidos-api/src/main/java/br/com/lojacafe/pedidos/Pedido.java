@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import org.hibernate.annotations.BatchSize;
 
 @Entity
 public class Pedido {
@@ -17,7 +18,9 @@ public class Pedido {
     private int quantidade;
     @Enumerated(EnumType.STRING)
     private Tamanho tamanho;
+    // BatchSize: a lista de pedidos busca os extras em lotes, não uma consulta por pedido.
     @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 100)
     @Enumerated(EnumType.STRING)
     private List<Extra> extras = new ArrayList<>();
     private String observacao;
