@@ -45,6 +45,9 @@ public class PedidoController {
             // O preço vem do cardápio da rede; produto desconhecido é erro do cliente (400).
             Produto produto = produtos.findById(i.produtoId()).orElseThrow(
                     () -> erro("produtoId " + i.produtoId() + " não existe"));
+            if (!produto.isAtivo()) {
+                throw erro("Produto " + produto.getNome() + " não está mais no cardápio");
+            }
             // O estoque que baixa é o da loja de quem está lançando.
             if (estoque.baixar(usuario.getLojaId(), produto.getId(), i.quantidade()) == 0) {
                 throw erro("Estoque insuficiente de " + produto.getNome());
