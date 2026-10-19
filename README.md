@@ -71,8 +71,8 @@ pip install -r requirements.txt && python app.py
 cd front && npm install && npm run dev
 ```
 
-Abra **http://localhost:5173**, faça um pedido e veja o status mudar de amarelo para verde.
-Para ver uma recusa, peça mais de R$ 100,00 (por exemplo, 20 bolos).
+Abra **http://localhost:5173**, crie uma conta, monte o pedido e veja o status mudar de amarelo para verde.
+Para ver uma recusa, pague no **crédito ou débito** um pedido acima de R$ 100,00 (por exemplo, 20 bolos). No Pix e no dinheiro não há limite.
 
 Passo a passo completo, segundo caixa e Analytics: [COMO-RODAR.md](COMO-RODAR.md).
 
@@ -82,20 +82,30 @@ Contrato completo em [`specs/api.md`](specs/api.md).
 
 | Método | Rota | O que faz |
 |---|---|---|
-| `GET` | `/produtos` | Cardápio (id, nome, descrição, emoji, preço) |
-| `GET` | `/opcoes` | Tamanhos e extras aceitos |
-| `POST` | `/pedidos` | Cria um pedido. `201` com o pedido ou `400` dizendo qual campo falhou |
-| `GET` | `/pedidos?limite=N` | Pedidos do mais novo ao mais antigo (padrão 100, máximo 200) |
+| `GET` | `/produtos` | Cardápio (id, nome, descrição, emoji, preço, estoque) |
+| `GET` | `/opcoes` | Tamanhos, extras e formas de pagamento aceitos |
+| `POST` | `/auth/registrar` | Cria a conta e já devolve o token |
+| `POST` | `/auth/entrar` | Login: devolve o token (`401` se e-mail ou senha estão errados) |
+| `POST` | `/pedidos` 🔒 | Cria um pedido com 1 a 10 itens. `201`, ou `400` dizendo qual campo falhou ou qual produto está sem estoque |
+| `GET` | `/pedidos?limite=N` 🔒 | Os pedidos **de quem está logado**, do mais novo ao mais antigo (padrão 100, máximo 200) |
+
+🔒 = exige `Authorization: Bearer <token>` (sem ele, `401`).
 
 ```http
 POST http://localhost:8081/pedidos
 Content-Type: application/json
 
-{ "cliente": "Ana", "produtoId": 2, "quantidade": 2, "tamanho": "GRANDE",
-  "extras": ["CHANTILLY", "CANELA"], "observacao": "sem açúcar" }
+Authorization: Bearer <token>
+
+{ "formaPagamento": "CREDITO", "parcelas": 2, "observacao": "sem açúcar",
+  "itens": [ { "produtoId": 2, "quantidade": 2, "tamanho": "GRANDE", "extras": ["CHANTILLY", "CANELA"] } ] }
 ```
 
-`valor = quantidade × (preço do produto + ajuste do tamanho + extras)`. No exemplo: 2 × (12,00 + 3,00 + 2,00 + 0,50) = **R$ 35,00**.
+`valor do item = quantidade × (preço do produto + ajuste do tamanho + extras)`; `valor do pedido = soma dos itens`.
+No exemplo: 2 × (12,00 + 3,00 + 2,00 + 0,50) = **R$ 35,00**. A loja é física: retirada no balcão, sem frete.
+
+**Formas de pagamento** (o Pagamentos simula cada uma): `PIX` aprova em ~1 s sem limite; `CREDITO` (até 3 parcelas) e `DEBITO` levam ~3 s e recusam acima de R$ 100,00; `DINHEIRO` aprova na hora (paga no balcão).
+**Estoque:** cada item baixa o estoque do produto; sem estoque, `400`. Pedido recusado devolve o estoque, uma única vez.
 
 ## Eventos (Kafka)
 
@@ -118,8 +128,8 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 19 testes: regras, validação e HTTP (H2 em memória, sem Docker)
-cd pagamentos-py && python -m unittest -v       # 5 testes: regra de negócio e evento inválido
+cd pedidos-api   && ./mvnw test                 # 31 testes: regras, validação, login, estoque e HTTP (H2 em memória, sem Docker)
+cd pagamentos-py && python -m unittest -v       # 9 testes: regras, formas de pagamento e evento inválido
 cd front         && npm run lint                # oxlint
 ```
 
@@ -152,7 +162,7 @@ O projeto foi construído em atos; cada branch guarda um marco:
 
 ## Limitações (projeto didático)
 
-Não há login, estoque, frete nem pagamento real; cada pedido tem um único item.
+Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física. O login é simples (senha com BCrypt e token de 24 h guardado no banco), sem recuperação de senha, sem limite de tentativas e sem perfis de administrador; o estoque só é reposto por recusa de pagamento (reposição manual é direto no banco).
 O Kafka e o Postgres rodam sem autenticação e só aceitam conexões locais (`127.0.0.1`).
 O Pagamentos usa o servidor de desenvolvimento do Flask. Para produção, veja os pontos de auditoria no histórico do projeto.
 

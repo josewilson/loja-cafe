@@ -1,43 +1,74 @@
 {
   "info": {
     "name": "Loja Café",
-    "description": "Chamadas da pedidos-api (8081) e do Pagamentos (5001). Contrato em specs/api.md.",
+    "description": "Chamadas da pedidos-api (8081) e do Pagamentos (5001). Contrato em specs/api.md. Rode 'POST /auth/registrar' (ou entrar), copie o token da resposta para a variável 'token' e use as chamadas de pedidos.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     { "key": "baseUrl", "value": "http://localhost:8081" },
-    { "key": "pagamentosUrl", "value": "http://localhost:5001" }
+    { "key": "pagamentosUrl", "value": "http://localhost:5001" },
+    { "key": "token", "value": "cole-o-token-aqui" }
   ],
   "item": [
     {
-      "name": "GET /produtos (cardápio)",
+      "name": "GET /produtos (cardápio e estoque)",
       "request": { "method": "GET", "url": "{{baseUrl}}/produtos" }
     },
     {
-      "name": "GET /opcoes (tamanhos e extras)",
+      "name": "GET /opcoes (tamanhos, extras e formas de pagamento)",
       "request": { "method": "GET", "url": "{{baseUrl}}/opcoes" }
     },
     {
-      "name": "POST /pedidos (válido)",
+      "name": "POST /auth/registrar",
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": "{{baseUrl}}/pedidos",
+        "url": "{{baseUrl}}/auth/registrar",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"cliente\": \"Ana\",\n  \"produtoId\": 2,\n  \"quantidade\": 2,\n  \"tamanho\": \"GRANDE\",\n  \"extras\": [\"CHANTILLY\", \"CANELA\"],\n  \"observacao\": \"sem açúcar\"\n}"
+          "raw": "{\n  \"nome\": \"Ana\",\n  \"email\": \"ana@exemplo.com\",\n  \"senha\": \"segredo123\"\n}"
         }
       }
     },
     {
-      "name": "POST /pedidos (acima de R$ 100: será RECUSADO)",
+      "name": "POST /auth/entrar",
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/entrar",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"ana@exemplo.com\",\n  \"senha\": \"segredo123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "POST /pedidos (Pix, 2 itens)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
         "url": "{{baseUrl}}/pedidos",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"cliente\": \"Caio\",\n  \"produtoId\": 4,\n  \"quantidade\": 20,\n  \"tamanho\": \"GRANDE\"\n}"
+          "raw": "{\n  \"formaPagamento\": \"PIX\",\n  \"observacao\": \"sem açúcar\",\n  \"itens\": [\n    { \"produtoId\": 2, \"quantidade\": 2, \"tamanho\": \"GRANDE\", \"extras\": [\"CHANTILLY\", \"CANELA\"] },\n    { \"produtoId\": 1, \"quantidade\": 1 }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "POST /pedidos (crédito acima de R$ 100: será RECUSADO)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/pedidos",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"formaPagamento\": \"CREDITO\",\n  \"parcelas\": 3,\n  \"itens\": [ { \"produtoId\": 4, \"quantidade\": 20, \"tamanho\": \"GRANDE\" } ]\n}"
         }
       }
     },
@@ -45,17 +76,24 @@
       "name": "POST /pedidos (inválido: espera 400)",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
         "url": "{{baseUrl}}/pedidos",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"cliente\": \"\",\n  \"produtoId\": 99,\n  \"quantidade\": 0,\n  \"tamanho\": \"XG\"\n}"
+          "raw": "{\n  \"formaPagamento\": \"FIADO\",\n  \"itens\": [ { \"produtoId\": 99, \"quantidade\": 0, \"tamanho\": \"XG\" } ]\n}"
         }
       }
     },
     {
-      "name": "GET /pedidos?limite=10",
-      "request": { "method": "GET", "url": "{{baseUrl}}/pedidos?limite=10" }
+      "name": "GET /pedidos?limite=10 (só os seus)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/pedidos?limite=10"
+      }
     },
     {
       "name": "Pagamentos · GET /saude",

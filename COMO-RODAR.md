@@ -23,7 +23,7 @@ A porta 5433 existe porque a 5432 costuma estar ocupada por outro Postgres; para
 1. Nova conexão → **PostgreSQL**.
 2. Host `localhost`, porta `5433`, banco `loja_cafe`, usuário `loja`, senha `loja`. Testar e salvar.
 3. Para criar **outro banco seu**: botão direito em *Databases* → *Create New Database*. O usuário `loja` é administrador do servidor.
-4. As tabelas da API (`pedido`, `pedido_extras`, `produto`) aparecem em `loja_cafe` → `Schemas` → `public` depois que a API sobe.
+4. As tabelas da API (`pedido`, `item_pedido`, `item_pedido_extras`, `usuario`, `sessao`, `produto`) aparecem em `loja_cafe` → `Schemas` → `public` depois que a API sobe.
 
 ### Testar no Insomnia
 *Application → Import* e escolha `specs/loja-cafe.postman_collection.json` (a coleção tem as chamadas da API e do Pagamentos).
@@ -36,8 +36,12 @@ cd pedidos-api
 ./mvnw spring-boot:run
 ```
 Windows: `mvnw.cmd spring-boot:run`. Para começar do zero: com a API parada, apague as tabelas no DBeaver
-(ou `docker compose exec postgres psql -U loja -d loja_cafe -c "drop table pedido_extras, pedido, produto"`).
-O cardápio (4 produtos) é recriado sozinho na próxima partida.
+(ou `docker compose exec postgres psql -U loja -d loja_cafe -c "drop table item_pedido_extras, item_pedido, pedido, sessao, usuario, produto"`).
+O cardápio (4 produtos, 50 unidades de estoque cada) é recriado sozinho na próxima partida.
+
+**Banco criado antes do login e dos vários itens por pedido?** Suba a nova API uma vez e rode, uma única vez,
+`docker exec -i loja-cafe-postgres-1 psql -U loja loja_cafe < infra/migracao-v2.sql`: os pedidos antigos viram itens da conta "legado".
+Banco novo não precisa disso.
 
 Outro banco ou senha: variáveis `DB_URL`, `DB_USER`, `DB_PASSWORD`. Outra origem de CORS: `lojacafe.cors.origem`.
 
