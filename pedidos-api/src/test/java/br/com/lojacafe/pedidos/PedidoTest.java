@@ -182,4 +182,12 @@ class PedidoTest {
         assertTrue(p.concluir(false, "limite", "caixa-1")); // o resultado ainda é registrado
         assertEquals(Preparo.CANCELADO, p.getPreparo()); // mas o pedido segue cancelado
     }
+
+    @Test
+    void pedidoQueJaEntrouNoFechamentoDeCaixaNaoCancela() {
+        Pedido p = pago();
+        ReflectionTestUtils.setField(p, "fechamentoId", 5L);
+        assertFalse(p.cancelar());
+        assertEquals(Preparo.NA_FILA, p.getPreparo());
+    }
 }

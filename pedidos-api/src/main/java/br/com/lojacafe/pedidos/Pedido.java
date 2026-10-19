@@ -40,6 +40,9 @@ public class Pedido {
     private String motivo;
     private String processadoPor;
     private Instant criadoEm;
+    // Fechamento de caixa que já contou este pedido (nulo = turno ainda aberto).
+    @JsonIgnore
+    private Long fechamentoId;
 
     protected Pedido() {
         // exigido pelo JPA
@@ -83,9 +86,12 @@ public class Pedido {
         return true;
     }
 
-    /** Cancela enquanto está na fila ou preparando. Pedido já recusado não tem o que cancelar (o estoque já voltou). */
+    /**
+     * Cancela enquanto está na fila ou preparando. Pedido já recusado não tem o que cancelar (o estoque já voltou),
+     * e pedido que já entrou num fechamento de caixa não muda mais (o dinheiro do turno já foi contado).
+     */
     public boolean cancelar() {
-        if ((preparo != Preparo.NA_FILA && preparo != Preparo.PREPARANDO) || status == StatusPedido.RECUSADO) {
+        if ((preparo != Preparo.NA_FILA && preparo != Preparo.PREPARANDO) || status == StatusPedido.RECUSADO || fechamentoId != null) {
             return false;
         }
         this.preparo = Preparo.CANCELADO;

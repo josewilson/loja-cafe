@@ -748,4 +748,198 @@ class PedidosApiApplicationTests {
                 .andExpect(jsonPath("$[?(@.acao=='PEDIDO_CANCELADO')].detalhe", contains("errei o pedido")))
                 .andExpect(jsonPath("$[?(@.acao=='PEDIDO_CANCELADO')].entidadeId", contains(String.valueOf(b))));
     }
+
+    // ---------- painel do gerente: caixa e vendas ----------
+
+    /** Lança um pedido com essa forma de pagamento e já o deixa PAGO. Preços: produto 1 = 8,50, 2 = 12,00, 3 = 6,00, 4 = 9,50. */
+    private long pagoComo(String token, String forma, int produtoId, int quantidade) throws Exception {
+        String corpo = POST(token, "/pedidos", "{\"formaPagamento\":\"" + forma + "\",\"itens\":[{\"produtoId\":" + produtoId
+                + ",\"quantidade\":" + quantidade + "}]}").andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(corpo, "$.id")).longValue();
+        resultado(id, "APROVADO");
+        return id;
+    }
+
+    private ResultActions fechar(String token, String contado) throws Exception {
+        return POST(token, "/caixa/fechamentos", "{\"dinheiroContado\":" + contado + ",\"observacao\":\"turno\"}");
+    }
+
+    @Test
+    void resumoDoCaixaAgrupaOTurnoAbertoPorForma() throws Exception {
+        String gerente = token(Papel.GERENTE, novaLoja());
+        pagoComo(gerente, "PIX", 1, 2); // 17,00
+        pagoComo(gerente, "DINHEIRO", 2, 1); // 12,00
+        pagoComo(gerente, "CREDITO", 3, 1); // 6,00
+        lancar(gerente, 1, 1); // aguardando: ainda não conta
+        resultado(lancar(gerente, 1, 1), "RECUSADO"); // recusado: nunca conta
+        long cancelado = pagoComo(gerente, "PIX", 1, 1);
+        PUT(gerente, "/pedidos/" + cancelado + "/cancelar", "{}").andExpect(status().isOk()); // cancelado: não conta
+
+        GET(gerente, "/caixa/resumo").andExpect(status().isOk())
+                .andExpect(jsonPath("$.pedidos").value(3))
+                .andExpect(jsonPath("$.total").value(35.0))
+                .andExpect(jsonPath("$.aguardando").value(1))
+                .andExpect(jsonPath("$.desde").doesNotExist()) // a loja nunca fechou
+                .andExpect(jsonPath("$.porForma[*].forma", contains("PIX", "DINHEIRO", "CREDITO"))) // do maior para o menor
+                .andExpect(jsonPath("$.porForma[0].total").value(17.0));
+    }
+
+    @Test
+    void fecharOCaixaCalculaADiferencaEZeraOTurno() throws Exception {
+        String gerente = token(Papel.GERENTE, novaLoja());
+        pagoComo(gerente, "PIX", 1, 2); // 17,00
+        pagoComo(gerente, "DINHEIRO", 2, 1); // 12,00 em dinheiro
+
+        String primeiro = fechar(gerente, "11.50").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.pedidos").value(2))
+                .andExpect(jsonPath("$.total").value(29.0))
+                .andExpect(jsonPath("$.dinheiroEsperado").value(12.0))
+                .andExpect(jsonPath("$.dinheiroContado").value(11.5))
+                .andExpect(jsonPath("$.diferenca").value(-0.5)) // faltou 0,50
+                .andExpect(jsonPath("$.porForma", hasSize(2)))
+                .andExpect(jsonPath("$.observacao").value("turno"))
+                .andExpect(jsonPath("$.desde").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        GET(gerente, "/caixa/resumo").andExpect(jsonPath("$.pedidos").value(0)).andExpect(jsonPath("$.total").value(0))
+                .andExpect(jsonPath("$.desde").value(JsonPath.read(primeiro, "$.ate").toString())); // o turno novo começa onde o outro acabou
+
+        pagoComo(gerente, "DINHEIRO", 1, 1); // 8,50 no turno seguinte
+        fechar(gerente, "9.00").andExpect(status().isCreated())
+                .andExpect(jsonPath("$.pedidos").value(1))
+                .andExpect(jsonPath("$.total").value(8.5))
+                .andExpect(jsonPath("$.diferenca").value(0.5)) // sobrou 0,50
+                .andExpect(jsonPath("$.desde").value(JsonPath.read(primeiro, "$.ate").toString()));
+    }
+
+    @Test
+    void pedidoPagoDepoisDoFechamentoEntraNoProximoSemSePerder() throws Exception {
+        String gerente = token(Papel.GERENTE, novaLoja());
+        long aguardando = lancar(gerente, 1, 2); // 17,00, pagamento ainda sem resposta
+        fechar(gerente, "0").andExpect(status().isCreated()).andExpect(jsonPath("$.pedidos").value(0));
+
+        resultado(aguardando, "APROVADO"); // o pagamento aprova só depois do fechamento
+        GET(gerente, "/caixa/resumo").andExpect(jsonPath("$.pedidos").value(1)).andExpect(jsonPath("$.total").value(17.0));
+        fechar(gerente, "0").andExpect(status().isCreated()).andExpect(jsonPath("$.pedidos").value(1)).andExpect(jsonPath("$.total").value(17.0));
+        fechar(gerente, "0").andExpect(jsonPath("$.pedidos").value(0)); // e não conta duas vezes
+    }
+
+    @Test
+    void pedidoJaFechadoNoCaixaNaoPodeSerCancelado() throws Exception {
+        String gerente = token(Papel.GERENTE, novaLoja());
+        long antes = pagoComo(gerente, "PIX", 1, 1);
+        fechar(gerente, "0").andExpect(status().isCreated());
+        PUT(gerente, "/pedidos/" + antes + "/cancelar", "{}").andExpect(status().isConflict());
+
+        long depois = pagoComo(gerente, "PIX", 1, 1); // do turno aberto ainda cancela
+        PUT(gerente, "/pedidos/" + depois + "/cancelar", "{}").andExpect(status().isOk());
+    }
+
+    @Test
+    void caixaTemRegrasDePapelEDeValidacao() throws Exception {
+        long loja = novaLoja();
+        long outra = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String atendente = token(Papel.ATENDENTE, loja);
+        String cozinha = token(Papel.COZINHA, loja);
+
+        for (String t : new String[]{atendente, cozinha, admin()}) {
+            fechar(t, "0").andExpect(status().isForbidden()); // só o gerente fecha o caixa
+        }
+        for (String t : new String[]{atendente, cozinha}) {
+            GET(t, "/caixa/resumo").andExpect(status().isForbidden());
+            GET(t, "/caixa/fechamentos").andExpect(status().isForbidden());
+            GET(t, "/relatorios/vendas").andExpect(status().isForbidden());
+        }
+        GET(gerente, "/caixa/resumo?lojaId=" + outra).andExpect(status().isForbidden());
+        GET(admin(), "/caixa/resumo").andExpect(status().isBadRequest()); // o admin precisa dizer a loja
+        GET(admin(), "/caixa/resumo?lojaId=" + loja).andExpect(status().isOk());
+
+        POST(gerente, "/caixa/fechamentos", "{}").andExpect(status().isBadRequest()); // sem dinheiroContado
+        fechar(gerente, "-1").andExpect(status().isBadRequest());
+        fechar(gerente, "10.001").andExpect(status().isBadRequest()); // só duas casas decimais
+        fechar(gerente, "10000000.01").andExpect(status().isBadRequest());
+        POST(gerente, "/caixa/fechamentos", "{\"dinheiroContado\":1,\"observacao\":\"" + "x".repeat(141) + "\"}").andExpect(status().isBadRequest());
+        POST(gerente, "/caixa/fechamentos", "{\"dinheiroContado\":\"abc\"}").andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void historicoDeFechamentosVaiDoMaisNovoAoMaisAntigoEFicaNaLoja() throws Exception {
+        long a = novaLoja();
+        long b = novaLoja();
+        String gerenteA = token(Papel.GERENTE, a);
+        String gerenteB = token(Papel.GERENTE, b);
+        pagoComo(gerenteA, "PIX", 1, 1);
+        fechar(gerenteA, "0").andExpect(status().isCreated());
+        pagoComo(gerenteA, "PIX", 2, 1);
+        fechar(gerenteA, "0").andExpect(status().isCreated());
+        pagoComo(gerenteB, "PIX", 3, 1); // o turno da loja B não é tocado pelo fechamento da A
+        GET(gerenteB, "/caixa/resumo").andExpect(jsonPath("$.pedidos").value(1));
+
+        GET(gerenteA, "/caixa/fechamentos").andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[0].total").value(12.0)) // o último fechamento primeiro
+                .andExpect(jsonPath("$[1].total").value(8.5))
+                .andExpect(jsonPath("$[*].lojaId", everyItem(is((int) a))));
+        GET(gerenteA, "/caixa/fechamentos?limite=1").andExpect(jsonPath("$", hasSize(1)));
+        GET(gerenteB, "/caixa/fechamentos").andExpect(jsonPath("$", hasSize(0)));
+        GET(gerenteB, "/caixa/fechamentos?lojaId=" + a).andExpect(status().isForbidden());
+        GET(admin(), "/caixa/fechamentos?lojaId=" + a).andExpect(jsonPath("$", hasSize(2)));
+    }
+
+    @Test
+    void fecharOCaixaVaiParaAAuditoria() throws Exception {
+        String gerente = token(Papel.GERENTE, novaLoja());
+        pagoComo(gerente, "DINHEIRO", 1, 1); // 8,50
+        fechar(gerente, "8.00").andExpect(status().isCreated());
+        GET(gerente, "/auditoria").andExpect(jsonPath("$[?(@.acao=='CAIXA_FECHADO')].detalhe",
+                contains(allOf(containsString("esperado 8.50"), containsString("contado 8.00"), containsString("diferença -0.50")))));
+    }
+
+    @Test
+    void vendasDoDia() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        pagoComo(gerente, "PIX", 1, 2); // 17,00
+        pagoComo(gerente, "DINHEIRO", 2, 3); // 36,00
+        lancar(gerente, 1, 1); // aguardando
+        resultado(lancar(gerente, 1, 1), "RECUSADO");
+        PUT(gerente, "/pedidos/" + pagoComo(gerente, "PIX", 3, 1) + "/cancelar", "{}").andExpect(status().isOk());
+
+        GET(gerente, "/relatorios/vendas").andExpect(status().isOk())
+                .andExpect(jsonPath("$.lojaId").value(loja))
+                .andExpect(jsonPath("$.pedidos").value(2))
+                .andExpect(jsonPath("$.total").value(53.0))
+                .andExpect(jsonPath("$.ticketMedio").value(26.5))
+                .andExpect(jsonPath("$.porForma[*].forma", contains("DINHEIRO", "PIX")))
+                .andExpect(jsonPath("$.maisVendidos[*].item", contains("Cappuccino", "Café coado"))) // 3 cappuccinos, 2 cafés
+                .andExpect(jsonPath("$.maisVendidos[0].quantidade").value(3))
+                .andExpect(jsonPath("$.maisVendidos[0].total").value(36.0))
+                .andExpect(jsonPath("$.recusados").value(1))
+                .andExpect(jsonPath("$.cancelados").value(1))
+                .andExpect(jsonPath("$.aguardando").value(1));
+    }
+
+    @Test
+    void vendasDeOutroDiaOuDeOutraLojaVeemZero() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        pagoComo(gerente, "PIX", 1, 1);
+        GET(gerente, "/relatorios/vendas?data=2020-01-01").andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value("2020-01-01"))
+                .andExpect(jsonPath("$.pedidos").value(0)).andExpect(jsonPath("$.total").value(0))
+                .andExpect(jsonPath("$.ticketMedio").value(0)).andExpect(jsonPath("$.maisVendidos", hasSize(0)));
+        GET(token(Papel.GERENTE, novaLoja()), "/relatorios/vendas").andExpect(jsonPath("$.pedidos").value(0)); // outra loja
+        GET(admin(), "/relatorios/vendas?lojaId=" + loja).andExpect(jsonPath("$.pedidos").value(1));
+    }
+
+    @Test
+    void vendasValidamAData() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        GET(gerente, "/relatorios/vendas?data=ontem").andExpect(status().isBadRequest());
+        GET(gerente, "/relatorios/vendas?data=2026-13-40").andExpect(status().isBadRequest());
+        GET(gerente, "/relatorios/vendas?lojaId=" + (loja + 1000)).andExpect(status().isForbidden());
+        GET(admin(), "/relatorios/vendas").andExpect(status().isBadRequest());
+    }
 }
