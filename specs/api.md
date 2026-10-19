@@ -24,7 +24,7 @@ O primeiro `ADMIN` é criado na primeira partida da API a partir de `ADMIN_EMAIL
 ### GET /opcoes
 Tamanhos, extras e formas de pagamento aceitos. Resposta `200`:
 ```json
-{ "tamanhos": [ { "codigo": "MEDIO", "nome": "Médio", "ajuste": 0.00 } ],
+{ "tamanhos": [ { "codigo": "MEDIO", "nome": "Médio", "ajuste": 0.00, "fatorInsumo": 1.00 } ],
   "extras":   [ { "codigo": "CHANTILLY", "nome": "Chantilly", "preco": 2.00 } ],
   "formasPagamento": [ { "codigo": "CREDITO", "nome": "Cartão de crédito", "parcelasMax": 3 } ] }
 ```
@@ -89,8 +89,8 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 [ { "id": 9, "quando": "2026-10-17T16:05:00Z", "usuarioId": 3, "lojaId": 1, "acao": "PEDIDO_CRIADO", "entidade": "Pedido", "entidadeId": "12", "detalhe": "valor 35.00" } ]
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
-`PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`
-(as duas últimas são da rede, sem loja: só o `ADMIN` as vê na auditoria).
+`PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`, `INSUMO_CRIADO`, `INSUMO_ALTERADO`, `FICHA_ALTERADA`, `INSUMO_AJUSTADO`
+(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja).
 
 ## Cardápio e pedidos (exigem token)
 
@@ -149,6 +149,55 @@ Mesmo corpo do `POST` mais `"ativo": true|false`. `200` com o produto. Inexisten
 - O **preço novo vale só para pedidos novos**: pedidos já feitos guardam o preço que usaram.
 - Produto **desativado** some do `GET /produtos` (balcão) e não aceita pedido novo, mas continua nos pedidos antigos e nos relatórios.
 
+## Insumos e ficha técnica
+Insumo = matéria-prima da rede (`Grão de café`, `Leite`, `Copo 300 ml`), com **unidade fixa** (`G`, `ML` ou `UN`; não muda depois de criado).
+O catálogo e as fichas são da rede (só o `ADMIN` edita); o **estoque e o mínimo são de cada loja**. A quantidade usa até 3 casas decimais
+e **pode ficar negativa**: a venda nunca é bloqueada por falta de insumo, o sistema só avisa.
+
+**Ficha técnica** = quanto de cada insumo gasta **1 unidade** de um produto (escrita para o tamanho `MEDIO`) ou de um extra.
+Consumo de um item do pedido = `quantidade × fatorInsumo do tamanho × (ficha do produto + ficha de cada extra)`.
+`fatorInsumo`: `PEQUENO` 0,75 · `MEDIO` 1,00 · `GRANDE` 1,50 (também vem em `GET /opcoes`). Produto sem ficha não gasta insumo.
+
+### Baixa e devolução
+- Ao **lançar o pedido**, baixa o estoque de insumos **da loja de quem lançou** e guarda o consumo daquele pedido (a ficha pode mudar depois).
+- Pedido **recusado** devolve os insumos, uma única vez.
+- Pedido **cancelado** devolve só se ainda estava `NA_FILA`. Se já estava `PREPARANDO`, os insumos foram usados e contam como **perda** (não voltam).
+  (O estoque de produtos prontos continua voltando nos dois casos.)
+
+### GET /insumos  (`ADMIN`, `GERENTE`)
+Catálogo com o estoque **da loja do usuário** (o `ADMIN` informa `?lojaId=`). Resposta `200`:
+```json
+[ { "id": 1, "nome": "Leite", "unidade": "ML", "ativo": true, "quantidade": 4200.000, "minimo": 1000.000, "abaixoDoMinimo": false } ]
+```
+`abaixoDoMinimo` = `quantidade ≤ minimo`.
+
+### POST /insumos  (`ADMIN`)
+`{ "nome": "Grão de café", "unidade": "G" }` (`nome` até 60, único sem diferenciar maiúsculas: repetido `409`; `unidade` `G`, `ML` ou `UN`).
+`201`. Nasce com estoque 0 e mínimo 0 em todas as lojas. Lojas criadas depois também ganham a linha.
+
+### PUT /insumos/{id}  (`ADMIN`)
+`{ "nome": "Leite integral", "ativo": true }`. A unidade não muda. `200`. Insumo desativado deixa de ser consumido e de alertar.
+
+### PUT /lojas/{lojaId}/insumos/{insumoId}  (`ADMIN`, `GERENTE` da loja)
+`{ "quantidade": 5000, "minimo": 1000 }`. É a **contagem** do estoque (de 0 a 999999999, até 3 casas); `minimo` é opcional (de 0 a 999999999;
+se faltar, mantém o atual). Outra loja: `403`. Insumo ou loja inexistente: `404`. `200` com `{ "lojaId", "insumoId", "quantidade", "minimo" }`.
+
+### GET /insumos/alertas  (`ADMIN`, `GERENTE`)
+Insumos ativos da loja com `quantidade ≤ minimo` (o `ADMIN` informa `?lojaId=`), os que **acabaram** primeiro. `200`:
+```json
+[ { "insumoId": 1, "nome": "Leite", "unidade": "ML", "quantidade": -150.000, "minimo": 1000.000, "situacao": "ACABOU" } ]
+```
+`situacao`: `ACABOU` (`quantidade ≤ 0`) ou `BAIXO`.
+
+### Fichas técnicas
+**GET /fichas/produtos/{id}** · **GET /fichas/extras/{codigo}**  (`ADMIN`, `GERENTE`) — `200`:
+```json
+{ "itens": [ { "insumoId": 1, "nome": "Leite", "unidade": "ML", "quantidade": 150.000 } ] }
+```
+**PUT /fichas/produtos/{id}** · **PUT /fichas/extras/{codigo}**  (`ADMIN`) — **substitui a ficha inteira**. Corpo igual ao da resposta, só com
+`insumoId` e `quantidade` (maior que 0, até 100000, 3 casas). Até 30 itens, sem insumo repetido, todos existentes (senão `400`).
+Lista vazia = não gasta nada. Produto ou extra inexistente: `404`. `200` com a ficha.
+
 ## Cozinha, retirada e cancelamento
 `preparo` é o andamento na loja e é **independente** do `status` (que é só o pagamento). Todo pedido nasce `NA_FILA`.
 
@@ -174,6 +223,7 @@ Corpo: `{ "preparo": "PREPARANDO" }`. Só avança um passo por vez, e só em ped
 ### PUT /pedidos/{id}/cancelar  (`GERENTE`)
 Corpo opcional: `{ "motivo": "cliente desistiu" }` (até 140, vai para a auditoria). Só cancela enquanto o `preparo` é `NA_FILA` ou `PREPARANDO`
 e o pagamento não foi `RECUSADO`. Devolve o estoque da loja (uma única vez) e grava `PEDIDO_CANCELADO`.
+Os **insumos** só voltam se o pedido ainda estava `NA_FILA`; em `PREPARANDO` contam como perda (veja *Insumos e ficha técnica*).
 Já `PRONTO`, `RETIRADO`, `CANCELADO`, `RECUSADO` ou já contado num fechamento de caixa: `409`. Outra loja: `403`. `200` com o pedido.
 
 ## Painel do gerente: vendas e caixa
