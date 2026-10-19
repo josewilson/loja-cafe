@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
-import java.math.BigDecimal;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -14,8 +14,8 @@ class NovoPedidoTest {
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
-    private static NovoPedido pedido(String cliente, String item, int quantidade, String preco) {
-        return new NovoPedido(cliente, item, quantidade, preco == null ? null : new BigDecimal(preco));
+    private static NovoPedido pedido(String cliente, Long produtoId, int quantidade) {
+        return new NovoPedido(cliente, produtoId, quantidade, null, null, null);
     }
 
     /** Nomes dos campos que a validação rejeitou. */
@@ -27,33 +27,44 @@ class NovoPedidoTest {
 
     @Test
     void pedidoValidoPassa() {
-        assertTrue(erros(pedido("Ana", "Café coado", 2, "8.50")).isEmpty());
+        assertTrue(erros(pedido("Ana", 1L, 2)).isEmpty());
+        assertTrue(erros(new NovoPedido("Ana", 2L, 1, Tamanho.GRANDE, List.of(Extra.CANELA), "sem açúcar")).isEmpty());
     }
 
     @Test
     void quantidadeAceitaDe1a50() {
-        assertTrue(erros(pedido("Ana", "Café", 1, "8.50")).isEmpty());
-        assertTrue(erros(pedido("Ana", "Café", 50, "8.50")).isEmpty());
-        assertEquals(Set.of("quantidade"), erros(pedido("Ana", "Café", 0, "8.50")));
-        assertEquals(Set.of("quantidade"), erros(pedido("Ana", "Café", 51, "8.50")));
+        assertTrue(erros(pedido("Ana", 1L, 1)).isEmpty());
+        assertTrue(erros(pedido("Ana", 1L, 50)).isEmpty());
+        assertEquals(Set.of("quantidade"), erros(pedido("Ana", 1L, 0)));
+        assertEquals(Set.of("quantidade"), erros(pedido("Ana", 1L, 51)));
     }
 
     @Test
-    void clienteEItemSaoObrigatorios() {
-        assertEquals(Set.of("cliente"), erros(pedido("", "Café", 1, "8.50")));
-        assertEquals(Set.of("cliente"), erros(pedido(null, "Café", 1, "8.50")));
-        assertEquals(Set.of("item"), erros(pedido("Ana", "  ", 1, "8.50")));
+    void clienteEProdutoSaoObrigatorios() {
+        assertEquals(Set.of("cliente"), erros(pedido("", 1L, 1)));
+        assertEquals(Set.of("cliente"), erros(pedido(null, 1L, 1)));
+        assertEquals(Set.of("cliente"), erros(pedido("  ", 1L, 1)));
+        assertEquals(Set.of("produtoId"), erros(pedido("Ana", null, 1)));
     }
 
     @Test
-    void precoPrecisaSerMaiorQueZero() {
-        assertEquals(Set.of("precoUnitario"), erros(pedido("Ana", "Café", 1, "0")));
-        assertEquals(Set.of("precoUnitario"), erros(pedido("Ana", "Café", 1, "-1")));
-        assertEquals(Set.of("precoUnitario"), erros(pedido("Ana", "Café", 1, null)));
+    void limitesDeTamanhoDosTextos() {
+        assertTrue(erros(pedido("A".repeat(60), 1L, 1)).isEmpty());
+        assertEquals(Set.of("cliente"), erros(pedido("A".repeat(61), 1L, 1)));
+        assertTrue(erros(new NovoPedido("Ana", 1L, 1, null, null, "x".repeat(140))).isEmpty());
+        assertEquals(Set.of("observacao"), erros(new NovoPedido("Ana", 1L, 1, null, null, "x".repeat(141))));
+    }
+
+    @Test
+    void ateCincoExtras() {
+        var cinco = List.of(Extra.CANELA, Extra.CANELA, Extra.CANELA, Extra.CANELA, Extra.CANELA);
+        var seis = List.of(Extra.CANELA, Extra.CANELA, Extra.CANELA, Extra.CANELA, Extra.CANELA, Extra.CANELA);
+        assertTrue(erros(new NovoPedido("Ana", 1L, 1, null, cinco, null)).isEmpty());
+        assertEquals(Set.of("extras"), erros(new NovoPedido("Ana", 1L, 1, null, seis, null)));
     }
 
     @Test
     void variosErrosDeUmaVez() {
-        assertEquals(Set.of("cliente", "quantidade", "precoUnitario"), erros(pedido("", "Café", 0, "-1")));
+        assertEquals(Set.of("cliente", "quantidade", "produtoId"), erros(pedido("", null, 0)));
     }
 }

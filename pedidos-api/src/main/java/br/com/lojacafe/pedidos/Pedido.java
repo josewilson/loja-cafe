@@ -3,6 +3,8 @@ package br.com.lojacafe.pedidos;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 public class Pedido {
@@ -13,6 +15,15 @@ public class Pedido {
     private String cliente;
     private String item;
     private int quantidade;
+    @Enumerated(EnumType.STRING)
+    private Tamanho tamanho;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Enumerated(EnumType.STRING)
+    private List<Extra> extras = new ArrayList<>();
+    private String observacao;
+    @Column(precision = 10, scale = 2)
+    private BigDecimal precoUnitario;
+    @Column(precision = 10, scale = 2)
     private BigDecimal valor;
 
     @Enumerated(EnumType.STRING)
@@ -25,11 +36,21 @@ public class Pedido {
         // exigido pelo JPA
     }
 
-    public Pedido(String cliente, String item, int quantidade, BigDecimal precoUnitario) {
-        this.cliente = cliente;
-        this.item = item;
+    /** precoUnitario = preço do cardápio + ajuste do tamanho + extras; valor = quantidade × precoUnitario. */
+    public Pedido(String cliente, Produto produto, int quantidade, Tamanho tamanho, List<Extra> extras, String observacao) {
+        this.cliente = cliente.trim();
+        this.item = produto.getNome();
         this.quantidade = quantidade;
-        this.valor = precoUnitario.multiply(BigDecimal.valueOf(quantidade));
+        this.tamanho = tamanho == null ? Tamanho.MEDIO : tamanho;
+        // distinct(): extra repetido conta uma vez só.
+        this.extras = extras == null ? new ArrayList<>() : new ArrayList<>(extras.stream().distinct().toList());
+        this.observacao = observacao == null || observacao.isBlank() ? null : observacao.trim();
+        BigDecimal unitario = produto.getPreco().add(this.tamanho.getAjuste());
+        for (Extra extra : this.extras) {
+            unitario = unitario.add(extra.getPreco());
+        }
+        this.precoUnitario = unitario;
+        this.valor = unitario.multiply(BigDecimal.valueOf(quantidade));
         this.status = StatusPedido.AGUARDANDO_PAGAMENTO;
         this.criadoEm = Instant.now();
     }
@@ -49,6 +70,10 @@ public class Pedido {
     public String getCliente() { return cliente; }
     public String getItem() { return item; }
     public int getQuantidade() { return quantidade; }
+    public Tamanho getTamanho() { return tamanho; }
+    public List<Extra> getExtras() { return extras; }
+    public String getObservacao() { return observacao; }
+    public BigDecimal getPrecoUnitario() { return precoUnitario; }
     public BigDecimal getValor() { return valor; }
     public StatusPedido getStatus() { return status; }
     public String getMotivo() { return motivo; }
