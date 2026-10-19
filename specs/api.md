@@ -1,6 +1,7 @@
 # Contrato da API de Pedidos (REST)
 
 Base: `http://localhost:8081`. JSON em UTF-8. CORS liberado para `http://localhost:5173`.
+Em produção a API fica atrás do Caddy em `/api` (a tela e a API no mesmo endereço, sem CORS); as rotas daqui continuam as mesmas, sem o prefixo.
 O preço **nunca** vem do cliente: a API tem o cardápio e calcula o valor.
 Loja física: não há entrega nem frete; o cliente retira no balcão. Quem usa o sistema é a **equipe**
 (o atendente lança o pedido no balcão); não existe cadastro público.
@@ -47,6 +48,11 @@ Tamanhos, extras e formas de pagamento aceitos. Resposta `200`:
 | `CREDITO` | 3 | ~3 s; recusa acima de R$ 100,00 |
 | `DEBITO` | 1 | ~3 s; recusa acima de R$ 100,00 |
 | `DINHEIRO` | 1 | Pagamento no balcão: aprova na hora |
+
+### GET /saude
+Diz se a API está de pé: o banco responde e o Kafka está acessível. Serve ao monitoramento e à verificação de saúde do Docker.
+Não revela detalhes internos. `200` com `{ "status": "ok", "banco": "ok", "kafka": "ok" }`; se algo falhar, `503` com
+`"status": "falha"` e `"falha"` no item que não respondeu. O resultado do Kafka vale por 10 s (não abre uma conexão nova a cada chamada).
 
 ## Login
 O token é aleatório, vale 24 h e vai em `Authorization: Bearer <token>`. Senha de 8 a 72 caracteres (BCrypt).
