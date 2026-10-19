@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   ajustarEstoque, caixaResumo, criarUsuario, definirAtivo, fecharCaixa, listarFechamentos,
   listarProdutos, listarUsuarios, relatorioVendas,
 } from './api'
 import Topo from './Topo'
+import Erro from './Erro'
+import useDados from './useDados'
 
 const reais = (n) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const quando = (iso) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'início')
@@ -16,40 +18,6 @@ const SECOES = [
 ]
 // Data de hoje no fuso do navegador, no formato do <input type="date">.
 const hoje = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-
-// Carrega dados de uma chamada à API e dá a função de recarregar. 401 manda de volta para o login.
-function useDados(buscar, aoSair) {
-  const [dados, setDados] = useState(null)
-  const [erro, setErro] = useState(null)
-  const [versao, setVersao] = useState(0)
-  const recarregar = useCallback(() => setVersao((n) => n + 1), [])
-  useEffect(() => {
-    let ativo = true
-    buscar()
-      .then((lista) => {
-        if (!ativo) return
-        setDados(lista)
-        setErro(null)
-      })
-      .catch((falha) => {
-        if (!ativo) return
-        if (falha.status === 401) return aoSair()
-        setErro(falha)
-      })
-    return () => {
-      ativo = false
-    }
-  }, [buscar, aoSair, versao])
-  return { dados, erro, recarregar, setErro }
-}
-
-const Erro = ({ erro }) =>
-  erro && (
-    <div className="faixa-erro" role="alert">
-      <strong>{erro.tipo === 'http' ? `Erro ${erro.status}` : 'Sem conexão'}</strong>
-      <ul>{erro.mensagens.map((m) => <li key={m}>{m}</li>)}</ul>
-    </div>
-  )
 
 function Formas({ formas, total }) {
   if (!formas.length) return <p className="vazio">Nenhuma venda ainda.</p>

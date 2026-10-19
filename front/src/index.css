@@ -296,3 +296,14 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
 .equipe li > span:first-child { display: grid; gap: 2px; margin-right: auto; }
 .nova-conta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; align-items: end; }
 @media (max-width: 860px) { .duas-colunas { grid-template-columns: 1fr; } .formas li { grid-template-columns: 1fr auto; } .formas .barra { grid-column: 1 / -1; grid-row: 2; } }
+
+/* Cardápio da rede (ADMIN) */
+.form-produto { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; align-items: end; width: 100%; }
+.form-produto .campo.largo { grid-column: span 2; min-width: 0; }
+.form-produto .marcar { display: flex; gap: 8px; align-items: center; font-weight: 600; padding-bottom: 12px; }
+.form-produto .acoes { margin: 0; align-self: end; }
+.item-cardapio { display: grid !important; grid-template-columns: auto 1fr auto auto auto; gap: 14px; align-items: center; }
+.item-cardapio > span:nth-child(2) { display: grid; gap: 2px; }
+.item-cardapio .form-produto { grid-column: 1 / -1; }
+.item-cardapio .emoji { font-size: 1.6rem; }
+@media (max-width: 860px) { .item-cardapio { grid-template-columns: auto 1fr auto; } .form-produto .campo.largo { grid-column: span 1; } }

@@ -143,4 +143,21 @@ FECH=$(chamar "$GERENTE" POST /caixa/fechamentos '{"dinheiroContado":0,"observac
   || falhar "pedido já contado no fechamento não deveria cancelar (409)"
 ok "fechado: 2 pedidos, turno zerado, cancelamento do pedido contado barrado"
 
+echo "13. Cardápio da rede: o ADMIN cria e reajusta; produto desativado some do balcão"
+[ "$(codigo "$GERENTE" GET /cardapio)" = "403" ] || falhar "gerente não edita o cardápio da rede (403)"
+PROD=$(chamar "$ADMIN" POST /cardapio "{\"nome\":\"E2E Brownie $SUFIXO\",\"descricao\":\"teste\",\"emoji\":\"E2E\",\"preco\":11.50}" | json "d.id")
+[ -n "$PROD" ] || falhar "o ADMIN deveria criar o produto"
+no_balcao() { chamar "$ATENDENTE" GET /produtos | json "d.filter(p => p.id === $PROD).map(p => p.estoque + ':' + p.preco).join()"; }
+[ "$(no_balcao)" = "0:11.5" ] || falhar "o produto novo deveria aparecer no balcão com estoque 0 (veio '$(no_balcao)')"
+chamar "$ADMIN" PUT "/lojas/$LOJA_A/estoque/$PROD" '{"quantidade":5}' > /dev/null
+vender() { chamar "$ATENDENTE" POST /pedidos "{\"formaPagamento\":\"PIX\",\"itens\":[{\"produtoId\":$PROD,\"quantidade\":2}]}" | json "d.valor"; }
+[ "$(vender)" = "23" ] || falhar "2 brownies a 11,50 deveriam dar 23"
+chamar "$ADMIN" PUT "/cardapio/$PROD" "{\"nome\":\"E2E Brownie $SUFIXO\",\"emoji\":\"E2E\",\"preco\":12.00,\"ativo\":true}" > /dev/null
+[ "$(vender)" = "24" ] || falhar "depois do reajuste, 2 brownies a 12,00 deveriam dar 24"
+chamar "$ADMIN" PUT "/cardapio/$PROD" "{\"nome\":\"E2E Brownie $SUFIXO\",\"emoji\":\"E2E\",\"preco\":12.00,\"ativo\":false}" > /dev/null
+[ -z "$(no_balcao)" ] || falhar "produto desativado não deveria aparecer no balcão"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API/pedidos" -H "Authorization: Bearer $ATENDENTE" -H 'Content-Type: application/json' -d "{\"formaPagamento\":\"PIX\",\"itens\":[{\"produtoId\":$PROD,\"quantidade\":1}]}")" = "400" ] \
+  || falhar "pedido com produto desativado deveria dar 400"
+ok "criado (id $PROD), vendido a 11,50 e depois a 12,00, desativado: some do balcão e não aceita pedido"
+
 echo "TUDO CERTO"

@@ -371,6 +371,61 @@
       }
     },
     {
+      "name": "GET /cardapio (ADMIN: todos os produtos, inclusive desativados)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/cardapio"
+      }
+    },
+    {
+      "name": "POST /cardapio (ADMIN cria produto; nasce com estoque 0 nas lojas)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/cardapio",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Pão na chapa\",\n  \"descricao\": \"Com manteiga\",\n  \"emoji\": \"🥖\",\n  \"preco\": 7.00\n}"
+        }
+      }
+    },
+    {
+      "name": "PUT /cardapio/100 (ADMIN: preço novo e ativar/desativar)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/cardapio/100",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nome\": \"Pão na chapa\",\n  \"descricao\": \"Com manteiga\",\n  \"emoji\": \"🥖\",\n  \"preco\": 7.50,\n  \"ativo\": true\n}"
+        }
+      }
+    },
+    {
       "name": "GET /auditoria (ADMIN ou GERENTE)",
       "request": {
         "method": "GET",

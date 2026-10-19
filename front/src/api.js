@@ -91,6 +91,11 @@ export const listarCozinha = () => pedir('/cozinha')
 export const mudarPreparo = (id, preparo) => alterar(`/pedidos/${id}/preparo`, { preparo })
 export const cancelarPedido = (id, motivo) => alterar(`/pedidos/${id}/cancelar`, motivo ? { motivo } : {})
 
+// Cardápio da rede (ADMIN)
+export const listarCardapio = () => pedir('/cardapio')
+export const criarProduto = (produto) => enviar('/cardapio', produto)
+export const alterarProduto = (id, produto) => alterar(`/cardapio/${id}`, produto)
+
 // Painel do gerente
 export const relatorioVendas = (data) => pedir(`/relatorios/vendas${data ? `?data=${data}` : ''}`)
 export const caixaResumo = () => pedir('/caixa/resumo')

@@ -93,7 +93,9 @@ Contrato completo em [`specs/api.md`](specs/api.md).
 | `GET` | `/opcoes` | Tamanhos, extras e formas de pagamento aceitos |
 | `POST` | `/auth/entrar` | Login: devolve o token, o papel e a loja (`401` se e-mail ou senha estão errados, `429` após 5 erros) |
 | `POST` | `/auth/sair` 🔒 | Encerra a sessão |
-| `GET` | `/produtos` 🔒 | Cardápio da rede (preço, emoji) com o **estoque da sua loja** |
+| `GET` | `/produtos` 🔒 | Cardápio da rede (só itens ativos) com o **estoque da sua loja** |
+| `GET` `POST` | `/cardapio` 🔒 admin | Lista todos os produtos (inclusive desativados) e cria produto novo (nasce com estoque 0 nas lojas) |
+| `PUT` | `/cardapio/{id}` 🔒 admin | Altera nome, descrição, emoji, preço e liga/desliga o item; preço novo vale só para pedidos novos |
 | `POST` | `/pedidos` 🔒 atendente, gerente | Lança um pedido com 1 a 10 itens. `201`, ou `400` dizendo qual campo falhou ou qual produto está sem estoque |
 | `GET` | `/pedidos?limite=N` 🔒 | Os pedidos **da sua loja**, do mais novo ao mais antigo (padrão 100, máximo 200). O ADMIN vê todas |
 | `GET` `POST` | `/usuarios` 🔒 admin, gerente | Lista e cria contas da equipe (o gerente só cria atendente e cozinha, na própria loja) |
@@ -113,7 +115,7 @@ Contrato completo em [`specs/api.md`](specs/api.md).
 
 | Papel | Pode |
 |---|---|
-| `ADMIN` | A rede toda: lojas, usuários, estoque, pedidos e auditoria de todas as lojas |
+| `ADMIN` | A rede toda: lojas, usuários, estoque, cardápio e preços, pedidos e auditoria de todas as lojas |
 | `GERENTE` | Na sua loja: tudo do balcão e da cozinha, criar/desativar atendente e cozinha, ajustar estoque, cancelar pedidos, fechar o caixa, ver vendas e auditoria |
 | `ATENDENTE` | Na sua loja: lançar pedidos, ver os pedidos e marcar como retirado |
 | `COZINHA` | Na sua loja: ver os pedidos e tocar a fila de preparo |
@@ -191,7 +193,7 @@ O projeto foi construído em atos; cada branch guarda um marco:
 
 Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física, com retirada no balcão. O login é por e-mail e senha (BCrypt, token de 24 h no banco, limite de tentativas), sem recuperação de senha por e-mail e sem autenticação em dois fatores.
 O Postgres e o Kafka exigem senha (`infra/.env`) e só aceitam conexões locais (`127.0.0.1`); o painel do Kafka não tem login próprio. O Kafka usa SASL/PLAIN sem TLS, adequado a rede local ou privada, não à internet.
-Ainda não existem a edição do cardápio, o estoque de insumos, a nota fiscal nem o pagamento real: veja o plano em fases abaixo.
+Ainda não existem o estoque de insumos, a nota fiscal nem o pagamento real: veja o plano em fases abaixo.
 
 ## Rumo à produção (em fases)
 
@@ -201,7 +203,8 @@ Ainda não existem a edição do cardápio, o estoque de insumos, a nota fiscal 
 | 2. Rede de lojas | Lojas, papéis (`ADMIN`, `GERENTE`, `ATENDENTE`, `COZINHA`), estoque por loja, auditoria | feita |
 | 3a. Cozinha | Fila de preparo, retirada e cancelamento de pedidos | feita |
 | 3b. Painel do gerente | Vendas do dia, fechamento de caixa por turno, equipe e estoque (aba "Gerência") | feita |
-| 3c. Cardápio e insumos | Edição do cardápio da rede, ficha técnica e estoque de insumos | próxima |
+| 3c-1. Cardápio editável | O ADMIN cria produtos, reajusta preços e liga/desliga itens (aba "Cardápio da rede") | feita |
+| 3c-2. Insumos | Ficha técnica, estoque de insumos por loja, baixa automática na venda e alertas | próxima |
 | 4. Hospedagem | Docker, HTTPS, backup, monitoramento | pendente |
 | 5. Pix real | Provedor de pagamento, webhook assinado | pendente |
 | 6. Nota fiscal | Emissor fiscal (confirmar com o contador) | pendente |

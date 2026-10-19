@@ -1,5 +1,5 @@
 const PAPEL = { ADMIN: 'Administrador', GERENTE: 'Gerente', ATENDENTE: 'Atendente', COZINHA: 'Cozinha' }
-const ROTULO_ABA = { balcao: 'Balcão', cozinha: 'Fila e retirada', gerencia: 'Gerência' }
+const ROTULO_ABA = { balcao: 'Balcão', cozinha: 'Fila e retirada', gerencia: 'Gerência', cardapio: 'Cardápio da rede' }
 
 // Cabeçalho comum: marca, abas (conforme o papel), estado da API, quem está logado e o botão de sair.
 export default function Topo({ sessao, aoSair, abas, visao, aoMudarVisao, offline }) {
@@ -24,7 +24,7 @@ export default function Topo({ sessao, aoSair, abas, visao, aoMudarVisao, offlin
               aria-current={aba === visao ? 'page' : undefined}
               onClick={() => aoMudarVisao(aba)}
             >
-              {ROTULO_ABA[aba]}
+              {aba === 'balcao' && papel === 'ADMIN' ? 'Pedidos' : ROTULO_ABA[aba]}
             </button>
           ))}
         </nav>
