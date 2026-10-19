@@ -72,7 +72,13 @@ pip install -r requirements.txt && python app.py
 cd front && npm install && npm run dev
 ```
 
-Abra **http://localhost:5173**, crie uma conta, monte o pedido e veja o status mudar de amarelo para verde.
+Não há cadastro público: a API cria o primeiro **ADMIN** com `ADMIN_EMAIL`/`ADMIN_PASSWORD` do `infra/.env`. Crie uma conta de atendente (a loja 1 é a "Matriz"):
+
+```bash
+scripts/criar-usuario.sh bia@loja.com Bia ATENDENTE 1     # pede a senha no terminal
+```
+
+Abra **http://localhost:5173**, entre como atendente, monte o pedido e veja o status mudar de amarelo para verde.
 Para ver uma recusa, pague no **crédito ou débito** um pedido acima de R$ 100,00 (por exemplo, 20 bolos). No Pix e no dinheiro não há limite.
 
 Passo a passo completo, segundo caixa e Analytics: [COMO-RODAR.md](COMO-RODAR.md).
@@ -85,12 +91,25 @@ Contrato completo em [`specs/api.md`](specs/api.md).
 |---|---|---|
 | `GET` | `/produtos` | Cardápio (id, nome, descrição, emoji, preço, estoque) |
 | `GET` | `/opcoes` | Tamanhos, extras e formas de pagamento aceitos |
-| `POST` | `/auth/registrar` | Cria a conta e já devolve o token |
-| `POST` | `/auth/entrar` | Login: devolve o token (`401` se e-mail ou senha estão errados) |
-| `POST` | `/pedidos` 🔒 | Cria um pedido com 1 a 10 itens. `201`, ou `400` dizendo qual campo falhou ou qual produto está sem estoque |
-| `GET` | `/pedidos?limite=N` 🔒 | Os pedidos **de quem está logado**, do mais novo ao mais antigo (padrão 100, máximo 200) |
+| `POST` | `/auth/entrar` | Login: devolve o token, o papel e a loja (`401` se e-mail ou senha estão errados, `429` após 5 erros) |
+| `POST` | `/auth/sair` 🔒 | Encerra a sessão |
+| `GET` | `/produtos` 🔒 | Cardápio da rede (preço, emoji) com o **estoque da sua loja** |
+| `POST` | `/pedidos` 🔒 atendente, gerente | Lança um pedido com 1 a 10 itens. `201`, ou `400` dizendo qual campo falhou ou qual produto está sem estoque |
+| `GET` | `/pedidos?limite=N` 🔒 | Os pedidos **da sua loja**, do mais novo ao mais antigo (padrão 100, máximo 200). O ADMIN vê todas |
+| `GET` `POST` | `/usuarios` 🔒 admin, gerente | Lista e cria contas da equipe (o gerente só cria atendente e cozinha, na própria loja) |
+| `PUT` | `/usuarios/{id}/ativo` 🔒 admin, gerente | Ativa ou desativa uma conta (desativar derruba as sessões) |
+| `GET` `POST` | `/lojas` 🔒 admin | Lista e cria lojas (com estoque inicial opcional) |
+| `PUT` | `/lojas/{id}/estoque/{produtoId}` 🔒 admin, gerente | Define o estoque de um produto na loja |
+| `GET` | `/auditoria` 🔒 admin, gerente | Quem fez o quê e quando |
 
-🔒 = exige `Authorization: Bearer <token>` (sem ele, `401`).
+🔒 = exige `Authorization: Bearer <token>` (sem ele, `401`; papel sem permissão ou outra loja, `403`).
+
+| Papel | Pode |
+|---|---|
+| `ADMIN` | A rede toda: lojas, usuários, estoque, pedidos e auditoria de todas as lojas |
+| `GERENTE` | Na sua loja: lançar pedidos, criar/desativar atendente e cozinha, ajustar estoque, ver auditoria |
+| `ATENDENTE` | Na sua loja: lançar pedidos e ver os pedidos |
+| `COZINHA` | Na sua loja: ver os pedidos |
 
 ```http
 POST http://localhost:8081/pedidos
@@ -98,7 +117,7 @@ Content-Type: application/json
 
 Authorization: Bearer <token>
 
-{ "formaPagamento": "CREDITO", "parcelas": 2, "observacao": "sem açúcar",
+{ "cliente": "Ana", "formaPagamento": "CREDITO", "parcelas": 2, "observacao": "sem açúcar",
   "itens": [ { "produtoId": 2, "quantidade": 2, "tamanho": "GRANDE", "extras": ["CHANTILLY", "CANELA"] } ] }
 ```
 
@@ -106,7 +125,7 @@ Authorization: Bearer <token>
 No exemplo: 2 × (12,00 + 3,00 + 2,00 + 0,50) = **R$ 35,00**. A loja é física: retirada no balcão, sem frete.
 
 **Formas de pagamento** (o Pagamentos simula cada uma): `PIX` aprova em ~1 s sem limite; `CREDITO` (até 3 parcelas) e `DEBITO` levam ~3 s e recusam acima de R$ 100,00; `DINHEIRO` aprova na hora (paga no balcão).
-**Estoque:** cada item baixa o estoque do produto; sem estoque, `400`. Pedido recusado devolve o estoque, uma única vez.
+**Estoque:** cada item baixa o estoque **da loja de quem lança**; sem estoque, `400`. Pedido recusado devolve o estoque, uma única vez. O cardápio e os preços são da rede; o estoque é de cada loja.
 
 ## Eventos (Kafka)
 
@@ -161,11 +180,22 @@ O projeto foi construído em atos; cada branch guarda um marco:
 | `ato-5` | Dois caixas dividindo as partições |
 | `main` | Tudo acima, mais as melhorias (Postgres, cardápio no servidor, front novo) |
 
-## Limitações (projeto didático)
+## Limitações
 
-Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física. O login é simples (senha com BCrypt e token de 24 h guardado no banco), sem recuperação de senha, sem limite de tentativas e sem perfis de administrador; o estoque só é reposto por recusa de pagamento (reposição manual é direto no banco).
+Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física, com retirada no balcão. O login é por e-mail e senha (BCrypt, token de 24 h no banco, limite de tentativas), sem recuperação de senha por e-mail e sem autenticação em dois fatores.
 O Postgres e o Kafka exigem senha (`infra/.env`) e só aceitam conexões locais (`127.0.0.1`); o painel do Kafka não tem login próprio. O Kafka usa SASL/PLAIN sem TLS, adequado a rede local ou privada, não à internet.
-O Pagamentos usa o servidor de desenvolvimento do Flask. Para produção, veja os pontos de auditoria no histórico do projeto.
+Ainda não existem os painéis do gerente e da cozinha, a nota fiscal nem o pagamento real: veja o plano em fases abaixo.
+
+## Rumo à produção (em fases)
+
+| Fase | O que entrega | Situação |
+|---|---|---|
+| 1. Base profissional | Migrações com Flyway, segredos em `infra/.env`, Postgres e Kafka com senha, login com limite de tentativas, CI e teste de ponta a ponta | feita |
+| 2. Rede de lojas | Lojas, papéis (`ADMIN`, `GERENTE`, `ATENDENTE`, `COZINHA`), estoque por loja, auditoria | feita |
+| 3. Operação | Painel do gerente, tela da cozinha, insumos | próxima |
+| 4. Hospedagem | Docker, HTTPS, backup, monitoramento | pendente |
+| 5. Pix real | Provedor de pagamento, webhook assinado | pendente |
+| 6. Nota fiscal | Emissor fiscal (confirmar com o contador) | pendente |
 
 ## Cuidados
 

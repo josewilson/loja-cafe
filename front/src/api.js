@@ -2,7 +2,7 @@
 const API = 'http://localhost:8081'
 const CHAVE = 'loja-cafe:sessao'
 
-// Erro de rede (API fora do ar) ou HTTP (400, 401, 500...), com mensagens prontas para mostrar na tela.
+// Erro de rede (API fora do ar) ou HTTP (400, 401, 403, 500...), com mensagens prontas para mostrar na tela.
 export class ApiErro extends Error {
   constructor(tipo, status, mensagens) {
     super(mensagens.join(' · '))
@@ -12,7 +12,7 @@ export class ApiErro extends Error {
   }
 }
 
-// Sessão { token, nome } guardada no navegador. localStorage pode estar bloqueado: nunca quebra a tela.
+// Sessão { token, nome, papel, lojaId, lojaNome } guardada no navegador. localStorage pode estar bloqueado: nunca quebra a tela.
 export function sessaoSalva() {
   try {
     return JSON.parse(localStorage.getItem(CHAVE))
@@ -28,7 +28,6 @@ function guardarSessao(sessao) {
     // sem localStorage: a sessão vale só até recarregar a página
   }
 }
-export const sair = () => guardarSessao(null)
 
 async function mensagensDoErro(resposta) {
   try {
@@ -54,23 +53,31 @@ async function pedir(caminho, opcoes = {}) {
     throw new ApiErro('rede', 0, [`Não consegui falar com a API (${API}). Ela está rodando?`])
   }
   if (!resposta.ok) {
-    // Token vencido ou inválido (fora do login): esquece a sessão; a tela volta para o login.
+    // Token vencido, inválido ou conta desativada (fora do login): esquece a sessão; a tela volta para o login.
     if (resposta.status === 401 && !caminho.startsWith('/auth')) guardarSessao(null)
     throw new ApiErro('http', resposta.status, await mensagensDoErro(resposta))
   }
-  return resposta.json()
+  return resposta.status === 204 ? null : resposta.json()
 }
 
 const enviar = (caminho, corpo) =>
   pedir(caminho, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) })
 
-const abrirSessao = async (chamada) => {
-  const sessao = await chamada
+export async function entrar(email, senha) {
+  const sessao = await enviar('/auth/entrar', { email, senha })
   guardarSessao(sessao)
   return sessao
 }
-export const entrar = (email, senha) => abrirSessao(enviar('/auth/entrar', { email, senha }))
-export const registrar = (nome, email, senha) => abrirSessao(enviar('/auth/registrar', { nome, email, senha }))
+
+// Encerra a sessão no servidor (se der) e esquece o token deste navegador.
+export async function sair() {
+  try {
+    await pedir('/auth/sair', { method: 'POST' })
+  } catch {
+    // servidor fora do ar ou token já vencido: o que importa é esquecer o token aqui
+  }
+  guardarSessao(null)
+}
 
 export const listarProdutos = () => pedir('/produtos')
 export const listarOpcoes = () => pedir('/opcoes')

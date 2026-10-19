@@ -25,7 +25,7 @@ A porta 5433 existe porque a 5432 costuma estar ocupada por outro Postgres; para
 1. Nova conexão → **PostgreSQL**.
 2. Host `localhost`, porta `5433`, banco `loja_cafe`, usuário e senha do `infra/.env` (`POSTGRES_USER` / `POSTGRES_PASSWORD`). Testar e salvar.
 3. Para criar **outro banco seu**: botão direito em *Databases* → *Create New Database*. O usuário `loja` é administrador do servidor.
-4. As tabelas da API (`pedido`, `item_pedido`, `item_pedido_extras`, `usuario`, `sessao`, `produto`) aparecem em `loja_cafe` → `Schemas` → `public` depois que a API sobe.
+4. As tabelas da API (`loja`, `usuario`, `sessao`, `produto`, `estoque_loja`, `pedido`, `item_pedido`, `item_pedido_extras`, `auditoria`) aparecem em `loja_cafe` → `Schemas` → `public` depois que a API sobe.
 
 ### Testar no Insomnia
 *Application → Import* e escolha `specs/loja-cafe.postman_collection.json` (a coleção tem as chamadas da API e do Pagamentos).
@@ -37,14 +37,18 @@ Precisa do Postgres e do Kafka no ar (`docker compose up -d --wait` acima).
 cd pedidos-api
 ./mvnw spring-boot:run
 ```
-Windows: `mvnw.cmd spring-boot:run`. Para começar do zero: com a API parada, apague as tabelas no DBeaver
-(ou `docker compose exec postgres psql -U loja -d loja_cafe -c "drop table item_pedido_extras, item_pedido, pedido, sessao, usuario, produto, flyway_schema_history"`).
-O esquema e o cardápio (4 produtos, 50 unidades cada) são recriados pelas migrações do Flyway (`pedidos-api/src/main/resources/db/migration`) na próxima partida.
-Mudou o banco? Crie um arquivo novo `V4__descricao.sql` nessa pasta; nunca edite uma migração já aplicada.
+Windows: `mvnw.cmd spring-boot:run`.
 
-**Banco criado antes do login e dos vários itens por pedido?** Suba a nova API uma vez e rode, uma única vez,
-`docker exec -i loja-cafe-postgres-1 psql -U loja loja_cafe < infra/migracao-v2.sql`: os pedidos antigos viram itens da conta "legado".
-Banco novo não precisa disso.
+**Primeira partida:** o Flyway cria o esquema, o cardápio (4 produtos) e a loja "Matriz", e a API cria o **ADMIN** com `ADMIN_EMAIL` e `ADMIN_PASSWORD` do `infra/.env`.
+Não existe cadastro público: crie as contas da equipe como ADMIN.
+```bash
+scripts/criar-usuario.sh bia@loja.com Bia ATENDENTE 1      # e-mail, nome, papel (ADMIN|GERENTE|ATENDENTE|COZINHA), id da loja; pede a senha
+scripts/criar-usuario.sh ze@loja.com Zé GERENTE 1
+```
+O gerente cria atendentes e cozinha da própria loja pela API (`POST /usuarios`); o ADMIN cria lojas (`POST /lojas`) e define o estoque de cada uma. Veja `specs/api.md`.
+
+**Começar do zero:** com a API parada, apague as tabelas no DBeaver (ou `docker compose exec postgres psql -U loja -d loja_cafe -c "drop table item_pedido_extras, item_pedido, pedido, estoque_loja, auditoria, sessao, usuario, loja, produto, flyway_schema_history"`). As migrações recriam tudo na próxima partida.
+**Mudou o banco?** Crie um arquivo novo (`V5__descricao.sql`) em `pedidos-api/src/main/resources/db/migration`; nunca edite uma migração já aplicada.
 
 As credenciais vêm de `infra/.env` (ou de variáveis de ambiente com o mesmo nome, que têm prioridade). Outro banco: `DB_URL`, `DB_USER`, `DB_PASSWORD`. Outra origem de CORS: `lojacafe.cors.origem`.
 

@@ -9,7 +9,13 @@ const ROTULO = {
   RECUSADO: 'Recusado',
 }
 
-export default function Loja({ nome, aoSair }) {
+const PAPEL = { ADMIN: "Administrador", GERENTE: "Gerente", ATENDENTE: "Atendente", COZINHA: "Cozinha" }
+
+export default function Loja({ sessao, aoSair }) {
+  const { nome, papel, lojaNome } = sessao
+  // Só atendente e gerente lançam pedidos (e só eles têm estoque de uma loja para mostrar).
+  const podePedir = papel === "ATENDENTE" || papel === "GERENTE"
+
   const [produtos, setProdutos] = useState([])
   const [opcoes, setOpcoes] = useState({ tamanhos: [], extras: [], formasPagamento: [] })
   const [catalogoErro, setCatalogoErro] = useState(null)
@@ -25,6 +31,7 @@ export default function Loja({ nome, aoSair }) {
   const [forma, setForma] = useState('PIX')
   const [parcelas, setParcelas] = useState(1)
   const [observacao, setObservacao] = useState('')
+  const [cliente, setCliente] = useState('') // nome dito no balcão (opcional)
 
   const [enviando, setEnviando] = useState(false)
   const [tempo, setTempo] = useState(null)
@@ -39,7 +46,7 @@ export default function Loja({ nome, aoSair }) {
   // Roda de novo quando `aguardando` muda: pedido novo ou concluído (recusado devolve estoque).
   useEffect(() => {
     let ativo = true
-    Promise.all([listarProdutos(), listarOpcoes()])
+    Promise.all([podePedir ? listarProdutos() : Promise.resolve([]), listarOpcoes()])
       .then(([listaProdutos, listaOpcoes]) => {
         if (!ativo) return
         setProdutos(listaProdutos)
@@ -51,7 +58,7 @@ export default function Loja({ nome, aoSair }) {
     return () => {
       ativo = false
     }
-  }, [tentativa, aguardando])
+  }, [tentativa, aguardando, podePedir])
 
   // Pergunta à API a cada 2 s (um pedido por vez, sem empilhar) para o status mudar sozinho.
   useEffect(() => {
@@ -125,12 +132,14 @@ export default function Loja({ nome, aoSair }) {
       const pedido = await criarPedido({
         formaPagamento: forma,
         parcelas: forma === 'CREDITO' ? parcelas : undefined,
+        cliente: cliente.trim() || undefined,
         observacao: observacao.trim() || undefined,
         itens: carrinho,
       })
       setRecebido(pedido)
       setCarrinho([])
       setObservacao('')
+      setCliente('')
       setPedidos(await listarPedidos(20))
     } catch (falha) {
       if (falha.status === 401) return aoSair()
@@ -156,7 +165,7 @@ export default function Loja({ nome, aoSair }) {
           <span className={offline ? 'conexao fora' : 'conexao'} role="status">
             <i aria-hidden="true" /> {offline ? 'API fora do ar' : 'API conectada'}
           </span>
-          <span className="ola">Olá, <strong>{nome}</strong></span>
+          <span className="ola">Olá, <strong>{nome}</strong> · {PAPEL[papel]} · {lojaNome ?? 'Rede toda'}</span>
           <button type="button" className="link" onClick={aoSair}>Sair</button>
         </div>
       </header>
@@ -169,6 +178,17 @@ export default function Loja({ nome, aoSair }) {
           </div>
         )}
 
+        {!podePedir && (
+          <section className="cartao">
+            <p className="vazio">
+              {papel === 'COZINHA'
+                ? 'Aqui você acompanha os pedidos da loja. A tela da cozinha chega em breve.'
+                : 'Administradores acompanham os pedidos de todas as lojas. Os painéis de gestão chegam em breve.'}
+            </p>
+          </section>
+        )}
+
+        {podePedir && (
         <form className="layout" onSubmit={enviar}>
             <section className="cartao cardapio">
               <h2><span className="passo">1</span> Escolha sua pedida</h2>
@@ -328,6 +348,16 @@ export default function Loja({ nome, aoSair }) {
                 </label>
               )}
 
+              <label className="campo">
+                <span>Nome do cliente <small>(opcional)</small></span>
+                <input
+                  value={cliente}
+                  onChange={(e) => setCliente(e.target.value)}
+                  maxLength={60}
+                  placeholder="Ex.: Carla (como diz no balcão)"
+                />
+              </label>
+
               <label className="campo largo">
                 <span>Observação <small>(opcional)</small></span>
                 <textarea
@@ -376,6 +406,7 @@ export default function Loja({ nome, aoSair }) {
             )}
           </aside>
         </form>
+        )}
 
         <section className="cartao" aria-labelledby="titulo-pedidos">
           <h2 id="titulo-pedidos" className="titulo-lista">
@@ -388,8 +419,10 @@ export default function Loja({ nome, aoSair }) {
               <li key={p.id} className={`pedido ${p.status}`}>
                 <div className="pedido-topo">
                   <span className="id">#{p.id}</span>
-                  <strong>{opcoes.formasPagamento.find((f) => f.codigo === p.formaPagamento)?.nome ?? 'Pagamento'}
-                    {p.parcelas > 1 && ` em ${p.parcelas}×`}</strong>
+                  <strong>{p.cliente}</strong>
+                  <small>{opcoes.formasPagamento.find((f) => f.codigo === p.formaPagamento)?.nome ?? 'Pagamento'}
+                    {p.parcelas > 1 && ` em ${p.parcelas}×`}</small>
+                  {papel === 'ADMIN' && <span className="tag">Loja {p.lojaId}</span>}
                   <span className="valor">{reais(p.valor)}</span>
                   <span className={`status ${p.status}`}>{ROTULO[p.status] ?? p.status}</span>
                 </div>

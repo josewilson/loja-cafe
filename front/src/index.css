@@ -238,3 +238,6 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
 .cardapio .produto small { min-height: 0; grid-column: 2; }
 .cardapio .produto .preco { grid-column: 3; grid-row: 1; }
 .cardapio .produto .selo { grid-column: 3; grid-row: 2; }
+
+/* Campos empilhados dentro de um cartão ganham respiro */
+.cartao .campo + .campo, .cartao .grupo + .campo { margin-top: 14px; }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { sair, sessaoSalva } from './api'
 import Entrar from './Entrar'
 import Loja from './Loja'
@@ -7,10 +7,10 @@ import Loja from './Loja'
 export default function App() {
   const [sessao, setSessao] = useState(sessaoSalva)
 
-  const aoSair = () => {
-    sair()
+  const aoSair = useCallback(async () => {
+    await sair()
     setSessao(null)
-  }
+  }, [])
 
-  return sessao ? <Loja nome={sessao.nome} aoSair={aoSair} /> : <Entrar aoEntrar={setSessao} />
+  return sessao ? <Loja sessao={sessao} aoSair={aoSair} /> : <Entrar aoEntrar={setSessao} />
 }

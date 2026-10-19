@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Loja Café",
-    "description": "Chamadas da pedidos-api (8081) e do Pagamentos (5001). Contrato em specs/api.md. Rode 'POST /auth/registrar' (ou entrar), copie o token da resposta para a variável 'token' e use as chamadas de pedidos.",
+    "description": "Chamadas da pedidos-api (8081) e do Pagamentos (5001). Contrato em specs/api.md. Passo a passo: 1) 'POST /auth/entrar' com o ADMIN do infra/.env e copie o token da resposta para a variável 'token'; 2) crie lojas e usuários; 3) entre como atendente, copie o novo token e lance pedidos.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -11,39 +11,100 @@
   ],
   "item": [
     {
-      "name": "GET /produtos (cardápio e estoque)",
-      "request": { "method": "GET", "url": "{{baseUrl}}/produtos" }
-    },
-    {
-      "name": "GET /opcoes (tamanhos, extras e formas de pagamento)",
+      "name": "GET /opcoes (público)",
       "request": { "method": "GET", "url": "{{baseUrl}}/opcoes" }
     },
     {
-      "name": "POST /auth/registrar",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": "{{baseUrl}}/auth/registrar",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"nome\": \"Ana\",\n  \"email\": \"ana@exemplo.com\",\n  \"senha\": \"segredo123\"\n}"
-        }
-      }
-    },
-    {
-      "name": "POST /auth/entrar",
+      "name": "POST /auth/entrar (ADMIN do infra/.env ou qualquer conta)",
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "url": "{{baseUrl}}/auth/entrar",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"ana@exemplo.com\",\n  \"senha\": \"segredo123\"\n}"
-        }
+        "body": { "mode": "raw", "raw": "{\n  \"email\": \"admin@loja-cafe.local\",\n  \"senha\": \"a-senha-do-ADMIN_PASSWORD\"\n}" }
       }
     },
     {
-      "name": "POST /pedidos (Pix, 2 itens)",
+      "name": "POST /auth/sair",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/auth/sair"
+      }
+    },
+    {
+      "name": "GET /lojas (ADMIN)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/lojas"
+      }
+    },
+    {
+      "name": "POST /lojas (ADMIN)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/lojas",
+        "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Centro\",\n  \"estoqueInicial\": 20\n}" }
+      }
+    },
+    {
+      "name": "PUT /lojas/1/estoque/2 (ADMIN ou GERENTE da loja)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/lojas/1/estoque/2",
+        "body": { "mode": "raw", "raw": "{\n  \"quantidade\": 40\n}" }
+      }
+    },
+    {
+      "name": "GET /usuarios (ADMIN ou GERENTE)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/usuarios"
+      }
+    },
+    {
+      "name": "POST /usuarios (ADMIN ou GERENTE)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/usuarios",
+        "body": { "mode": "raw", "raw": "{\n  \"nome\": \"Bia\",\n  \"email\": \"bia@loja.com\",\n  \"senha\": \"segredo123\",\n  \"papel\": \"ATENDENTE\",\n  \"lojaId\": 1\n}" }
+      }
+    },
+    {
+      "name": "PUT /usuarios/2/ativo (desativar)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/usuarios/2/ativo",
+        "body": { "mode": "raw", "raw": "{\n  \"ativo\": false\n}" }
+      }
+    },
+    {
+      "name": "GET /produtos (cardápio e estoque da sua loja; ADMIN usa ?lojaId=1)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/produtos"
+      }
+    },
+    {
+      "name": "POST /pedidos (Pix, 2 itens; ATENDENTE ou GERENTE)",
       "request": {
         "method": "POST",
         "header": [
@@ -53,7 +114,7 @@
         "url": "{{baseUrl}}/pedidos",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"formaPagamento\": \"PIX\",\n  \"observacao\": \"sem açúcar\",\n  \"itens\": [\n    { \"produtoId\": 2, \"quantidade\": 2, \"tamanho\": \"GRANDE\", \"extras\": [\"CHANTILLY\", \"CANELA\"] },\n    { \"produtoId\": 1, \"quantidade\": 1 }\n  ]\n}"
+          "raw": "{\n  \"cliente\": \"Ana\",\n  \"formaPagamento\": \"PIX\",\n  \"observacao\": \"sem açúcar\",\n  \"itens\": [\n    { \"produtoId\": 2, \"quantidade\": 2, \"tamanho\": \"GRANDE\", \"extras\": [\"CHANTILLY\", \"CANELA\"] },\n    { \"produtoId\": 1, \"quantidade\": 1 }\n  ]\n}"
         }
       }
     },
@@ -88,11 +149,19 @@
       }
     },
     {
-      "name": "GET /pedidos?limite=10 (só os seus)",
+      "name": "GET /pedidos?limite=10 (da sua loja; ADMIN vê todas)",
       "request": {
         "method": "GET",
         "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
         "url": "{{baseUrl}}/pedidos?limite=10"
+      }
+    },
+    {
+      "name": "GET /auditoria (ADMIN ou GERENTE)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/auditoria?limite=50"
       }
     },
     {
