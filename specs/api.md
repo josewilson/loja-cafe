@@ -89,7 +89,7 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 [ { "id": 9, "quando": "2026-10-17T16:05:00Z", "usuarioId": 3, "lojaId": 1, "acao": "PEDIDO_CRIADO", "entidade": "Pedido", "entidadeId": "12", "detalhe": "valor 35.00" } ]
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
-`PREPARO_ALTERADO`, `PEDIDO_CANCELADO`.
+`PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`.
 
 ## Cardápio e pedidos (exigem token)
 
@@ -153,7 +153,46 @@ Corpo: `{ "preparo": "PREPARANDO" }`. Só avança um passo por vez, e só em ped
 ### PUT /pedidos/{id}/cancelar  (`GERENTE`)
 Corpo opcional: `{ "motivo": "cliente desistiu" }` (até 140, vai para a auditoria). Só cancela enquanto o `preparo` é `NA_FILA` ou `PREPARANDO`
 e o pagamento não foi `RECUSADO`. Devolve o estoque da loja (uma única vez) e grava `PEDIDO_CANCELADO`.
-Já `PRONTO`, `RETIRADO`, `CANCELADO` ou `RECUSADO`: `409`. Outra loja: `403`. `200` com o pedido.
+Já `PRONTO`, `RETIRADO`, `CANCELADO`, `RECUSADO` ou já contado num fechamento de caixa: `409`. Outra loja: `403`. `200` com o pedido.
+
+## Painel do gerente: vendas e caixa
+"Venda" = pedido `PAGO` e não `CANCELADO`. Valores em reais. `forma` = `PIX`, `CREDITO`, `DEBITO` ou `DINHEIRO`.
+
+### GET /relatorios/vendas?data=AAAA-MM-DD  (`ADMIN`, `GERENTE`)
+Vendas de um dia da loja (padrão: hoje; dia = de 00:00 a 24:00 no fuso de São Paulo, pela hora em que o pedido foi criado).
+O `ADMIN` informa `?lojaId=`. Data inválida: `400`. Resposta `200`:
+```json
+{ "data": "2026-10-17", "lojaId": 1, "pedidos": 12, "total": 340.50, "ticketMedio": 28.38,
+  "porForma": [ { "forma": "PIX", "pedidos": 7, "total": 210.00 } ],
+  "maisVendidos": [ { "item": "Cappuccino", "quantidade": 15, "total": 225.00 } ],
+  "recusados": 1, "cancelados": 2, "aguardando": 0 }
+```
+`maisVendidos` traz até 5 itens, do que mais saiu para o que menos saiu. `ticketMedio` é `0` sem vendas.
+
+### Fechamento de caixa (por turno)
+O caixa é fechado quando o turno acaba. Cada pedido vendido entra em **um único** fechamento (o primeiro depois que foi pago),
+então nada se perde nem conta duas vezes, mesmo que o pagamento aprove segundos depois do fechamento.
+Pedido que já entrou num fechamento **não pode mais ser cancelado**.
+
+**GET /caixa/resumo**  (`GERENTE`; `ADMIN` com `?lojaId=`) — o turno aberto, ou seja, o que ainda não foi fechado:
+```json
+{ "lojaId": 1, "desde": "2026-10-17T12:00:00Z", "pedidos": 8, "total": 210.00,
+  "porForma": [ { "forma": "DINHEIRO", "pedidos": 2, "total": 25.00 } ], "aguardando": 0 }
+```
+(`desde` é o fim do último fechamento, ou `null` se a loja nunca fechou.) `aguardando` avisa de pedidos ainda sem resposta do pagamento:
+eles entram no próximo fechamento depois de pagos.
+
+**POST /caixa/fechamentos**  (`GERENTE`) — fecha o turno. Corpo: `{ "dinheiroContado": 25.00, "observacao": "troco ok" }`
+(`dinheiroContado` obrigatório, de 0 a 10000000; `observacao` até 140). Calcula o que era esperado em dinheiro (`DINHEIRO` vendido)
+e a `diferenca = dinheiroContado − dinheiroEsperado` (negativa = faltou dinheiro). `201`:
+```json
+{ "id": 5, "lojaId": 1, "usuarioId": 3, "desde": "2026-10-17T12:00:00Z", "ate": "2026-10-17T20:00:00Z",
+  "pedidos": 8, "total": 210.00,
+  "porForma": [ { "forma": "DINHEIRO", "pedidos": 2, "total": 25.00 } ],
+  "dinheiroEsperado": 25.00, "dinheiroContado": 24.00, "diferenca": -1.00,
+  "observacao": "troco ok", "criadoEm": "2026-10-17T20:00:00Z" }
+```
+**GET /caixa/fechamentos?limite=N**  (`ADMIN`, `GERENTE`) — histórico, do mais novo ao mais antigo (padrão 50, de 1 a 200).
 
 ## Status do pedido
 | Status | Quando |
