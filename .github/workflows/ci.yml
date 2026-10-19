@@ -91,7 +91,7 @@ jobs:
       - name: Espera API e Pagamentos
         run: |
           for i in $(seq 1 60); do
-            curl -fs localhost:8081/produtos > /dev/null && curl -fs localhost:5001/saude > /dev/null && exit 0
+            curl -fs localhost:8081/opcoes > /dev/null && curl -fs localhost:5001/saude > /dev/null && exit 0
             sleep 3
           done
           echo "API ou Pagamentos não subiram"; tail -50 api.log pag.log; exit 1
