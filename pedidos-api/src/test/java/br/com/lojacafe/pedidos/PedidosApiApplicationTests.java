@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.ResultActions;
         "spring.kafka.admin.auto-create=false",
         "spring.kafka.listener.auto-startup=false",
         "spring.datasource.url=jdbc:h2:mem:teste",
+        "DB_PASSWORD=teste", "KAFKA_USER=teste", "KAFKA_PASSWORD=teste", // sem Kafka nem Postgres de verdade aqui
         // Nos testes o Hibernate cria as tabelas no H2 e o cardápio vem da própria V2 (as migrações são para o Postgres).
         "lojacafe.limite.registros-por-hora=1000", // os testes criam muitas contas do mesmo IP
         "spring.flyway.enabled=false",

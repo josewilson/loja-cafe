@@ -9,8 +9,10 @@ import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
+from pathlib import Path
 
 from confluent_kafka import Consumer, Producer
+from dotenv import load_dotenv
 from flask import Flask, jsonify
 from waitress import serve
 
@@ -20,6 +22,26 @@ HOST = os.getenv("HOST", "127.0.0.1")
 KAFKA = os.getenv("KAFKA", "localhost:9092")
 # O Kafka do compose só escuta em IPv4; sem isto o log enche de "Connect to ipv6#[::1] failed".
 IPV4 = {"broker.address.family": "v4"}
+
+# Credenciais do Kafka: variáveis de ambiente ou infra/.env (modelo: infra/.env.example). Ambiente tem prioridade.
+load_dotenv(Path(__file__).resolve().parent.parent / "infra" / ".env")
+
+
+def credencial(nome):
+    valor = os.getenv(nome)
+    if not valor:
+        raise SystemExit(f"Defina {nome} (variável de ambiente ou infra/.env; modelo em infra/.env.example)")
+    return valor
+
+
+def seguranca_kafka():
+    """Login SASL/PLAIN do broker (specs/eventos.md não muda: é só quem pode entrar)."""
+    return {
+        "security.protocol": "SASL_PLAINTEXT",
+        "sasl.mechanisms": "PLAIN",
+        "sasl.username": credencial("KAFKA_USER"),
+        "sasl.password": credencial("KAFKA_PASSWORD"),
+    }
 LIMITE = 100.00  # acima disso, o "cartão de teste" recusa
 
 app = Flask(__name__)
@@ -79,10 +101,11 @@ def ouvir_kafka():
         "auto.offset.reset": "earliest",   # grupo novo começa do início do tópico
         "session.timeout.ms": 10000,       # instância sumiu? em 10 s o grupo redistribui as partições
         **IPV4,
+        **seguranca_kafka(),
     })
     # murmur2_random = o mesmo cálculo de partição do cliente Java: a mesma chave cai
     # na mesma partição, venha a mensagem do Python, do Spring ou do terminal do Kafka.
-    produtor = Producer({"bootstrap.servers": KAFKA, "partitioner": "murmur2_random", **IPV4})
+    produtor = Producer({"bootstrap.servers": KAFKA, "partitioner": "murmur2_random", **IPV4, **seguranca_kafka()})
     consumidor.subscribe(["pedidos-criados"])
     print(f"[{INSTANCIA}] ouvindo pedidos-criados no grupo 'pagamentos'", flush=True)
 

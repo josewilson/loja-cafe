@@ -70,8 +70,10 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Sobe Postgres e Kafka
-        run: docker compose up -d --wait postgres kafka
+      - name: Sobe Postgres e Kafka (senhas do modelo: a máquina do CI é descartável)
+        run: |
+          cp .env.example .env
+          docker compose up -d --wait postgres kafka
         working-directory: infra
 
       - name: Sobe a API (o Flyway cria o esquema num banco vazio e o Hibernate o confere)

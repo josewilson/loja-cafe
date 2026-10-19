@@ -19,5 +19,6 @@ Simplicidade vale mais que "boas práticas de produção": código curto, legív
 - Python sempre em `.venv` dentro da pasta da peça. Dependências em `requirements.txt`.
 - Spring: pacote `br.com.lojacafe.pedidos`, sem camadas extras (controller, entidade, repositório e
   no máximo uma classe por integração). Nada de arquitetura hexagonal neste projeto.
+- Senhas e chaves só em `infra/.env` (ignorado pelo Git) ou variáveis de ambiente; nunca no código. O modelo é `infra/.env.example`.
 - Não rode `docker compose down -v` (apaga os eventos do Kafka e os pedidos do Postgres). Para parar: `docker compose stop`.
 - Ao terminar cada tarefa: diga como eu rodo, o que devo ver e qual comando prova que funciona.

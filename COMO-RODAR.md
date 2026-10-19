@@ -5,12 +5,14 @@ Precisa de: Docker, Java 21 (`JAVA_HOME` apontando para o JDK 21), Node 20+ e Py
 
 ## Infra: Postgres + Kafka + painel
 ```bash
+cp infra/.env.example infra/.env   # só na primeira vez; abra o arquivo e TROQUE as senhas
 cd infra
 docker compose up -d --wait
 ```
+Sem o `infra/.env` o compose não sobe e a API/Pagamentos/Analytics recusam iniciar (de propósito: não há senha padrão).
 | O quê | Onde |
 |---|---|
-| Postgres (banco da pedidos-api) | `localhost:5433` · banco `loja_cafe` · usuário `loja` · senha `loja` |
+| Postgres (banco da pedidos-api) | `localhost:5433` · banco `loja_cafe` · usuário e senha em `infra/.env` |
 | Kafka | `localhost:9092` |
 | Painel do Kafka (kafka-ui) | http://localhost:8090 |
 
@@ -21,7 +23,7 @@ A porta 5433 existe porque a 5432 costuma estar ocupada por outro Postgres; para
 
 ### Conectar no DBeaver
 1. Nova conexão → **PostgreSQL**.
-2. Host `localhost`, porta `5433`, banco `loja_cafe`, usuário `loja`, senha `loja`. Testar e salvar.
+2. Host `localhost`, porta `5433`, banco `loja_cafe`, usuário e senha do `infra/.env` (`POSTGRES_USER` / `POSTGRES_PASSWORD`). Testar e salvar.
 3. Para criar **outro banco seu**: botão direito em *Databases* → *Create New Database*. O usuário `loja` é administrador do servidor.
 4. As tabelas da API (`pedido`, `item_pedido`, `item_pedido_extras`, `usuario`, `sessao`, `produto`) aparecem em `loja_cafe` → `Schemas` → `public` depois que a API sobe.
 
@@ -44,7 +46,7 @@ Mudou o banco? Crie um arquivo novo `V4__descricao.sql` nessa pasta; nunca edite
 `docker exec -i loja-cafe-postgres-1 psql -U loja loja_cafe < infra/migracao-v2.sql`: os pedidos antigos viram itens da conta "legado".
 Banco novo não precisa disso.
 
-Outro banco ou senha: variáveis `DB_URL`, `DB_USER`, `DB_PASSWORD`. Outra origem de CORS: `lojacafe.cors.origem`.
+As credenciais vêm de `infra/.env` (ou de variáveis de ambiente com o mesmo nome, que têm prioridade). Outro banco: `DB_URL`, `DB_USER`, `DB_PASSWORD`. Outra origem de CORS: `lojacafe.cors.origem`.
 
 Testes (não precisam de Docker: usam H2 em memória): `./mvnw test`.
 

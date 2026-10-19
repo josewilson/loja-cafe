@@ -4,6 +4,7 @@ target/
 .venv/
 __pycache__/
 dados/
+.env
 *.log
 .DS_Store
 .idea/vcs.xml

@@ -6,16 +6,39 @@ com um grupo próprio, 'analytics', e monta um painel de vendas.
 import json
 import os
 from collections import Counter
+from pathlib import Path
 
 from confluent_kafka import Consumer
+from dotenv import load_dotenv
 
 GRUPO = os.getenv("GRUPO", "analytics")
+
+# Credenciais do Kafka: variáveis de ambiente ou infra/.env (modelo: infra/.env.example). Ambiente tem prioridade.
+load_dotenv(Path(__file__).resolve().parent.parent / "infra" / ".env")
+
+
+def credencial(nome):
+    valor = os.getenv(nome)
+    if not valor:
+        raise SystemExit(f"Defina {nome} (variável de ambiente ou infra/.env; modelo em infra/.env.example)")
+    return valor
+
+
+def seguranca_kafka():
+    """Login SASL/PLAIN do broker (specs/eventos.md não muda: é só quem pode entrar)."""
+    return {
+        "security.protocol": "SASL_PLAINTEXT",
+        "sasl.mechanisms": "PLAIN",
+        "sasl.username": credencial("KAFKA_USER"),
+        "sasl.password": credencial("KAFKA_PASSWORD"),
+    }
 
 consumidor = Consumer({
     "bootstrap.servers": os.getenv("KAFKA", "localhost:9092"),
     "group.id": GRUPO,
     "auto.offset.reset": "earliest",  # grupo que nunca leu começa do offset 0
     "broker.address.family": "v4",
+    **seguranca_kafka(),
 })
 consumidor.subscribe(["pedidos-criados", "pagamentos-resultados"])
 

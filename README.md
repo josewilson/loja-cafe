@@ -56,7 +56,8 @@ flowchart LR
 **Pré-requisitos:** Docker, JDK 21 (`JAVA_HOME` apontando para ele), Node 20+ e Python 3.
 
 ```bash
-# 1. Infra: Postgres + Kafka + painel
+# 1. Infra: Postgres + Kafka + painel (as senhas ficam em infra/.env, fora do Git)
+cp infra/.env.example infra/.env   # depois TROQUE as senhas dentro dele
 cd infra && docker compose up -d --wait
 
 # 2. API (outro terminal)
@@ -120,7 +121,7 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 
 | | |
 |---|---|
-| Postgres | `localhost:5433` · banco `loja_cafe` · usuário `loja` · senha `loja` |
+| Postgres | `localhost:5433` · banco `loja_cafe` · usuário e senha em `infra/.env` (`POSTGRES_USER` / `POSTGRES_PASSWORD`) |
 | **DBeaver** | nova conexão PostgreSQL com os dados acima; o usuário pode criar outros bancos |
 | **Insomnia** | *Import* de [`specs/loja-cafe.postman_collection.json`](specs/loja-cafe.postman_collection.json) |
 | Painel do Kafka | http://localhost:8090 (tópicos, mensagens e lag dos grupos) |
@@ -163,7 +164,7 @@ O projeto foi construído em atos; cada branch guarda um marco:
 ## Limitações (projeto didático)
 
 Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física. O login é simples (senha com BCrypt e token de 24 h guardado no banco), sem recuperação de senha, sem limite de tentativas e sem perfis de administrador; o estoque só é reposto por recusa de pagamento (reposição manual é direto no banco).
-O Kafka e o Postgres rodam sem autenticação e só aceitam conexões locais (`127.0.0.1`).
+O Postgres e o Kafka exigem senha (`infra/.env`) e só aceitam conexões locais (`127.0.0.1`); o painel do Kafka não tem login próprio. O Kafka usa SASL/PLAIN sem TLS, adequado a rede local ou privada, não à internet.
 O Pagamentos usa o servidor de desenvolvimento do Flask. Para produção, veja os pontos de auditoria no histórico do projeto.
 
 ## Cuidados
