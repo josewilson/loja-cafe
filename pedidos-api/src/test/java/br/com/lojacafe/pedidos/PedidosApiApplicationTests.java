@@ -550,4 +550,202 @@ class PedidosApiApplicationTests {
         GET(admin(), "/auditoria?limite=500").andExpect(jsonPath("$[?(@.acao=='LOGIN_FALHOU')]", not(empty())));
         GET(admin(), "/auditoria?limite=1").andExpect(jsonPath("$", hasSize(1)));
     }
+
+    // ---------- cozinha, retirada e cancelamento ----------
+
+    /** Lança um pedido (produto, quantidade) como esse atendente e devolve o id. O pagamento fica aguardando. */
+    private long lancar(String token, int produtoId, int quantidade) throws Exception {
+        String corpo = POST(token, "/pedidos", umItem(produtoId, quantidade)).andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(corpo, "$.id")).longValue();
+    }
+
+    private void resultado(long pedidoId, String status) {
+        listener.receber("{\"versao\":1,\"pedidoId\":" + pedidoId + ",\"status\":\"" + status
+                + "\",\"motivo\":null,\"instancia\":\"caixa-1\"}");
+    }
+
+    /** Lança e já deixa o pedido PAGO. */
+    private long lancarPago(String token, int produtoId, int quantidade) throws Exception {
+        long id = lancar(token, produtoId, quantidade);
+        resultado(id, "APROVADO");
+        return id;
+    }
+
+    private ResultActions preparo(String token, long id, String novo) throws Exception {
+        return PUT(token, "/pedidos/" + id + "/preparo", "{\"preparo\":\"" + novo + "\"}");
+    }
+
+    @Test
+    void pedidoNasceNaFila() throws Exception {
+        String t = token(Papel.ATENDENTE, novaLoja());
+        POST(t, "/pedidos", umItem(1, 1)).andExpect(status().isCreated()).andExpect(jsonPath("$.preparo").value("NA_FILA"));
+    }
+
+    @Test
+    void cozinhaSoVePedidosPagosDaPropriaLoja() throws Exception {
+        long a = novaLoja();
+        long b = novaLoja();
+        String atendente = token(Papel.ATENDENTE, a);
+        String cozinhaA = token(Papel.COZINHA, a);
+        String cozinhaB = token(Papel.COZINHA, b);
+        long id = lancar(atendente, 1, 1);
+
+        GET(cozinhaA, "/cozinha").andExpect(status().isOk()).andExpect(jsonPath("$", hasSize(0))); // ainda não pago
+        resultado(id, "APROVADO");
+        GET(cozinhaA, "/cozinha").andExpect(jsonPath("$", hasSize(1))).andExpect(jsonPath("$[0].id").value(id));
+        GET(atendente, "/cozinha").andExpect(jsonPath("$", hasSize(1))); // o balcão também enxerga a fila
+        GET(cozinhaB, "/cozinha").andExpect(jsonPath("$", hasSize(0)));
+        GET(cozinhaA, "/cozinha?lojaId=" + b).andExpect(status().isForbidden());
+        GET(admin(), "/cozinha").andExpect(status().isBadRequest());
+        GET(admin(), "/cozinha?lojaId=" + a).andExpect(jsonPath("$", hasSize(1)));
+
+        long recusado = lancar(atendente, 1, 1);
+        resultado(recusado, "RECUSADO");
+        GET(cozinhaA, "/cozinha").andExpect(jsonPath("$", hasSize(1))); // recusado nunca entra na fila
+    }
+
+    @Test
+    void filaVaiDoMaisAntigoAoMaisNovo() throws Exception {
+        String atendente = token(Papel.ATENDENTE, novaLoja());
+        long primeiro = lancarPago(atendente, 1, 1);
+        long segundo = lancarPago(atendente, 1, 1);
+        GET(atendente, "/cozinha").andExpect(jsonPath("$[0].id").value(primeiro)).andExpect(jsonPath("$[1].id").value(segundo));
+    }
+
+    @Test
+    void fluxoDePreparoAteRetirar() throws Exception {
+        long loja = novaLoja();
+        String atendente = token(Papel.ATENDENTE, loja);
+        String cozinha = token(Papel.COZINHA, loja);
+        long id = lancarPago(atendente, 1, 1);
+
+        preparo(cozinha, id, "PREPARANDO").andExpect(status().isOk()).andExpect(jsonPath("$.preparo").value("PREPARANDO"));
+        preparo(cozinha, id, "PRONTO").andExpect(status().isOk()).andExpect(jsonPath("$.preparo").value("PRONTO"));
+        GET(cozinha, "/cozinha").andExpect(jsonPath("$[0].preparo").value("PRONTO")); // pronto ainda aparece, até retirarem
+        preparo(atendente, id, "RETIRADO").andExpect(status().isOk()).andExpect(jsonPath("$.preparo").value("RETIRADO"));
+        GET(cozinha, "/cozinha").andExpect(jsonPath("$", hasSize(0)));
+        GET(atendente, "/pedidos").andExpect(jsonPath("$[0].preparo").value("RETIRADO"));
+    }
+
+    @Test
+    void preparoTemRegras() throws Exception {
+        long loja = novaLoja();
+        long outra = novaLoja();
+        String atendente = token(Papel.ATENDENTE, loja);
+        String cozinha = token(Papel.COZINHA, loja);
+        String cozinhaOutra = token(Papel.COZINHA, outra);
+        long aguardando = lancar(atendente, 1, 1);
+        long pago = lancarPago(atendente, 1, 1);
+
+        preparo(cozinha, aguardando, "PREPARANDO").andExpect(status().isConflict()); // ainda não pago
+        preparo(cozinha, pago, "PRONTO").andExpect(status().isConflict()); // pulou uma etapa
+        preparo(cozinha, pago, "RETIRADO").andExpect(status().isForbidden()); // cozinha não entrega
+        preparo(atendente, pago, "PREPARANDO").andExpect(status().isForbidden()); // balcão não prepara
+        preparo(cozinhaOutra, pago, "PREPARANDO").andExpect(status().isForbidden()); // outra loja
+        preparo(cozinha, pago, "NA_FILA").andExpect(status().isBadRequest());
+        preparo(cozinha, pago, "CANCELADO").andExpect(status().isBadRequest());
+        preparo(cozinha, 999999, "PREPARANDO").andExpect(status().isNotFound());
+        PUT(cozinha, "/pedidos/" + pago + "/preparo", "{\"preparo\":\"BRINCANDO\"}").andExpect(status().isBadRequest());
+        PUT(cozinha, "/pedidos/" + pago + "/preparo", "{}").andExpect(status().isBadRequest());
+        preparo(admin(), pago, "PREPARANDO").andExpect(status().isForbidden());
+
+        preparo(cozinha, pago, "PREPARANDO").andExpect(status().isOk());
+        preparo(cozinha, pago, "PREPARANDO").andExpect(status().isConflict()); // já está preparando
+    }
+
+    @Test
+    void gerenteTocaTodasAsEtapas() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        long id = lancarPago(gerente, 1, 1);
+        preparo(gerente, id, "PREPARANDO").andExpect(status().isOk());
+        preparo(gerente, id, "PRONTO").andExpect(status().isOk());
+        preparo(gerente, id, "RETIRADO").andExpect(status().isOk());
+    }
+
+    @Test
+    void gerenteCancelaEDevolveOEstoqueUmaSoVez() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String atendente = token(Papel.ATENDENTE, loja);
+        long id = lancarPago(atendente, 3, 10);
+        assertEquals(40, estoque(gerente, 3));
+
+        PUT(gerente, "/pedidos/" + id + "/cancelar", "{\"motivo\":\"cliente desistiu\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.preparo").value("CANCELADO"));
+        assertEquals(50, estoque(gerente, 3));
+        PUT(gerente, "/pedidos/" + id + "/cancelar", "{}").andExpect(status().isConflict()); // já cancelado
+        assertEquals(50, estoque(gerente, 3)); // não devolveu de novo
+        GET(atendente, "/cozinha").andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    void cancelarSemCorpoTambemFunciona() throws Exception {
+        String gerente = token(Papel.GERENTE, novaLoja());
+        long id = lancarPago(gerente, 1, 1);
+        mvc.perform(put("/pedidos/" + id + "/cancelar").header("Authorization", "Bearer " + gerente))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.preparo").value("CANCELADO"));
+    }
+
+    @Test
+    void cancelamentoTemRegras() throws Exception {
+        long loja = novaLoja();
+        long outra = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String atendente = token(Papel.ATENDENTE, loja);
+        String cozinha = token(Papel.COZINHA, loja);
+        String gerenteOutra = token(Papel.GERENTE, outra);
+
+        long pago = lancarPago(atendente, 1, 1);
+        PUT(atendente, "/pedidos/" + pago + "/cancelar", "{}").andExpect(status().isForbidden()); // só o gerente cancela
+        PUT(cozinha, "/pedidos/" + pago + "/cancelar", "{}").andExpect(status().isForbidden());
+        PUT(admin(), "/pedidos/" + pago + "/cancelar", "{}").andExpect(status().isForbidden());
+        PUT(gerenteOutra, "/pedidos/" + pago + "/cancelar", "{}").andExpect(status().isForbidden()); // outra loja
+        PUT(gerente, "/pedidos/999999/cancelar", "{}").andExpect(status().isNotFound());
+        PUT(gerente, "/pedidos/" + pago + "/cancelar", "{\"motivo\":\"" + "x".repeat(141) + "\"}").andExpect(status().isBadRequest());
+
+        // preparando ainda cancela; depois de PRONTO ou RETIRADO não cancela mais
+        preparo(cozinha, pago, "PREPARANDO").andExpect(status().isOk());
+        PUT(gerente, "/pedidos/" + pago + "/cancelar", "{}").andExpect(status().isOk());
+        long pronto = lancarPago(atendente, 1, 1);
+        preparo(cozinha, pronto, "PREPARANDO").andExpect(status().isOk());
+        preparo(cozinha, pronto, "PRONTO").andExpect(status().isOk());
+        PUT(gerente, "/pedidos/" + pronto + "/cancelar", "{}").andExpect(status().isConflict());
+        preparo(atendente, pronto, "RETIRADO").andExpect(status().isOk());
+        PUT(gerente, "/pedidos/" + pronto + "/cancelar", "{}").andExpect(status().isConflict());
+
+        // recusado não tem o que cancelar (o estoque já voltou)
+        long recusado = lancar(atendente, 1, 1);
+        resultado(recusado, "RECUSADO");
+        PUT(gerente, "/pedidos/" + recusado + "/cancelar", "{}").andExpect(status().isConflict());
+    }
+
+    @Test
+    void cancelarAntesDoPagamentoNaoDevolveEmDobroSeDepoisForRecusado() throws Exception {
+        String gerente = token(Papel.GERENTE, novaLoja());
+        long id = lancar(gerente, 3, 10); // ainda aguardando pagamento
+        assertEquals(40, estoque(gerente, 3));
+
+        PUT(gerente, "/pedidos/" + id + "/cancelar", "{}").andExpect(status().isOk());
+        assertEquals(50, estoque(gerente, 3)); // o cancelamento devolveu
+        resultado(id, "RECUSADO"); // o resultado chega depois
+        assertEquals(50, estoque(gerente, 3)); // e não devolve de novo
+    }
+
+    @Test
+    void auditoriaGuardaPreparoECancelamento() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String cozinha = token(Papel.COZINHA, loja);
+        long a = lancarPago(gerente, 1, 1);
+        long b = lancarPago(gerente, 1, 1);
+        preparo(cozinha, a, "PREPARANDO").andExpect(status().isOk());
+        PUT(gerente, "/pedidos/" + b + "/cancelar", "{\"motivo\":\"errei o pedido\"}").andExpect(status().isOk());
+
+        GET(gerente, "/auditoria").andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.acao=='PREPARO_ALTERADO')].detalhe", contains("NA_FILA -> PREPARANDO")))
+                .andExpect(jsonPath("$[?(@.acao=='PEDIDO_CANCELADO')].detalhe", contains("errei o pedido")))
+                .andExpect(jsonPath("$[?(@.acao=='PEDIDO_CANCELADO')].entidadeId", contains(String.valueOf(b))));
+    }
 }

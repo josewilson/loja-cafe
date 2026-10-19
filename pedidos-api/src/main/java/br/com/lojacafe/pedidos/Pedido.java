@@ -35,6 +35,8 @@ public class Pedido {
 
     @Enumerated(EnumType.STRING)
     private StatusPedido status;
+    @Enumerated(EnumType.STRING)
+    private Preparo preparo = Preparo.NA_FILA;
     private String motivo;
     private String processadoPor;
     private Instant criadoEm;
@@ -69,6 +71,27 @@ public class Pedido {
         return true;
     }
 
+    /**
+     * Avança o preparo um passo (NA_FILA → PREPARANDO → PRONTO → RETIRADO). Só vale em pedido PAGO.
+     * Devolve false se o pedido não está na etapa anterior (já mudou, ou tentou pular).
+     */
+    public boolean avancarPara(Preparo novo) {
+        if (status != StatusPedido.PAGO || novo.anterior() == null || preparo != novo.anterior()) {
+            return false;
+        }
+        this.preparo = novo;
+        return true;
+    }
+
+    /** Cancela enquanto está na fila ou preparando. Pedido já recusado não tem o que cancelar (o estoque já voltou). */
+    public boolean cancelar() {
+        if ((preparo != Preparo.NA_FILA && preparo != Preparo.PREPARANDO) || status == StatusPedido.RECUSADO) {
+            return false;
+        }
+        this.preparo = Preparo.CANCELADO;
+        return true;
+    }
+
     public Long getId() { return id; }
     public Long getLojaId() { return lojaId; }
     public String getAtendente() { return atendente; }
@@ -79,6 +102,7 @@ public class Pedido {
     public String getObservacao() { return observacao; }
     public BigDecimal getValor() { return valor; }
     public StatusPedido getStatus() { return status; }
+    public Preparo getPreparo() { return preparo; }
     public String getMotivo() { return motivo; }
     public String getProcessadoPor() { return processadoPor; }
     public Instant getCriadoEm() { return criadoEm; }

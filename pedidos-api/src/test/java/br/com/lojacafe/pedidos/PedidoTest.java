@@ -116,4 +116,70 @@ class PedidoTest {
         assertEquals("caixa-1", p.getProcessadoPor());
         assertNull(p.getMotivo());
     }
+
+    // ---------- andamento na loja (cozinha, retirada, cancelamento) ----------
+
+    private Pedido pago() {
+        Pedido p = novo();
+        p.concluir(true, null, "caixa-1");
+        return p;
+    }
+
+    @Test
+    void nasceNaFila() {
+        assertEquals(Preparo.NA_FILA, novo().getPreparo());
+    }
+
+    @Test
+    void avancaUmPassoPorVezEmPedidoPago() {
+        Pedido p = pago();
+        assertFalse(p.avancarPara(Preparo.PRONTO)); // não pula
+        assertTrue(p.avancarPara(Preparo.PREPARANDO));
+        assertFalse(p.avancarPara(Preparo.PREPARANDO)); // não repete
+        assertTrue(p.avancarPara(Preparo.PRONTO));
+        assertFalse(p.avancarPara(Preparo.NA_FILA)); // não volta
+        assertTrue(p.avancarPara(Preparo.RETIRADO));
+        assertEquals(Preparo.RETIRADO, p.getPreparo());
+    }
+
+    @Test
+    void naoAvancaSemPagamentoAprovado() {
+        Pedido aguardando = novo();
+        assertFalse(aguardando.avancarPara(Preparo.PREPARANDO));
+        Pedido recusado = novo();
+        recusado.concluir(false, "limite", "caixa-1");
+        assertFalse(recusado.avancarPara(Preparo.PREPARANDO));
+    }
+
+    @Test
+    void cancelaNaFilaOuPreparandoEUmaSoVez() {
+        Pedido p = pago();
+        assertTrue(p.cancelar());
+        assertEquals(Preparo.CANCELADO, p.getPreparo());
+        assertFalse(p.cancelar()); // já cancelado
+        Pedido preparando = pago();
+        preparando.avancarPara(Preparo.PREPARANDO);
+        assertTrue(preparando.cancelar());
+    }
+
+    @Test
+    void naoCancelaProntoRetiradoNemRecusado() {
+        Pedido pronto = pago();
+        pronto.avancarPara(Preparo.PREPARANDO);
+        pronto.avancarPara(Preparo.PRONTO);
+        assertFalse(pronto.cancelar());
+        pronto.avancarPara(Preparo.RETIRADO);
+        assertFalse(pronto.cancelar());
+        Pedido recusado = novo();
+        recusado.concluir(false, "limite", "caixa-1");
+        assertFalse(recusado.cancelar());
+    }
+
+    @Test
+    void cancelarAntesDoPagamentoValeEOResultadoDepoisSoRegistra() {
+        Pedido p = novo();
+        assertTrue(p.cancelar());
+        assertTrue(p.concluir(false, "limite", "caixa-1")); // o resultado ainda é registrado
+        assertEquals(Preparo.CANCELADO, p.getPreparo()); // mas o pedido segue cancelado
+    }
 }
