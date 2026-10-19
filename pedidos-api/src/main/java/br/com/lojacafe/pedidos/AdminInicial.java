@@ -3,14 +3,17 @@ package br.com.lojacafe.pedidos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 
-/** Primeira partida sem nenhum ADMIN: cria um com ADMIN_EMAIL e ADMIN_PASSWORD (infra/.env). Nunca há senha fixa no código. */
+/**
+ * Primeira partida sem nenhum ADMIN: cria um com ADMIN_EMAIL e ADMIN_PASSWORD (infra/.env). Nunca há senha fixa no código.
+ * Roda quando os beans terminam de nascer, ANTES de o servidor web aceitar a primeira requisição (um ApplicationRunner
+ * rodaria depois: dava uma janela em que a API já respondia, mas o ADMIN ainda não existia).
+ */
 @Component
-public class AdminInicial implements ApplicationRunner {
+public class AdminInicial implements SmartInitializingSingleton {
 
     private static final Logger log = LoggerFactory.getLogger(AdminInicial.class);
 
@@ -27,7 +30,7 @@ public class AdminInicial implements ApplicationRunner {
     }
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void afterSingletonsInstantiated() {
         if (usuarios.existsByPapel(Papel.ADMIN)) {
             return;
         }
