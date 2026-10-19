@@ -55,7 +55,7 @@ body {
   background: radial-gradient(1200px 500px at 50% -200px, var(--fundo-2), transparent), var(--fundo);
 }
 h1, h2, p, ul, dl { margin: 0; }
-button, input, textarea { font: inherit; color: inherit; }
+button, input, textarea, select { font: inherit; color: inherit; }
 small { color: var(--suave); font-weight: 400; }
 .so-leitor { position: absolute; opacity: 0; pointer-events: none; }
 :focus-visible { outline: 3px solid var(--destaque); outline-offset: 2px; }
@@ -94,7 +94,7 @@ main { max-width: 1080px; margin: 0 auto; padding: 16px 20px 56px; display: grid
 /* Campos */
 .campo { display: grid; gap: 6px; font-weight: 600; font-size: .92rem; }
 .campo.largo { flex: 1; min-width: 220px; }
-input[type='text'], input:not([type]), input[type='number'], textarea {
+input[type='text'], input:not([type]), input[type='number'], input[type='email'], input[type='password'], textarea, select {
   width: 100%; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--borda); background: transparent;
 }
 textarea { resize: vertical; min-height: 64px; }
@@ -203,3 +203,26 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Login, conta, carrinho e estoque */
+.entrar { max-width: 420px; padding-top: 12vh; }
+.entrar form { display: grid; gap: 16px; }
+.entrar h1 { font-family: ui-serif, Georgia, 'Times New Roman', serif; font-size: 1.7rem; }
+.entrar p { color: var(--suave); font-size: .92rem; }
+.link { background: none; border: 0; padding: 4px 6px; color: var(--destaque); font-weight: 600; cursor: pointer; text-decoration: underline; }
+.topo-direita { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ola { font-size: .92rem; color: var(--suave); }
+.ola strong { color: var(--tinta); }
+.botao.secundario { background: transparent; color: var(--tinta); border: 2px solid var(--marca); align-self: end; }
+.botao.secundario:disabled { cursor: not-allowed; }
+.produto.esgotado { opacity: .55; cursor: not-allowed; }
+.produto.esgotado:hover { transform: none; border-color: var(--borda); }
+.selo { justify-self: start; font-size: .74rem; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--perigo-fundo); color: var(--perigo); }
+.selo.aviso { background: var(--aviso-fundo); color: var(--aviso); }
+.carrinho { list-style: none; padding: 0; display: grid; gap: 10px; }
+.carrinho li { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; }
+.carrinho li .emoji { font-size: 1.6rem; }
+.carrinho li div { display: grid; gap: 2px; }
+.valor-item { font-weight: 700; }
+.remover { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--borda); background: transparent; cursor: pointer; font-size: 1.1rem; line-height: 1; }
+.remover:hover { background: var(--perigo-fundo); color: var(--perigo); }
