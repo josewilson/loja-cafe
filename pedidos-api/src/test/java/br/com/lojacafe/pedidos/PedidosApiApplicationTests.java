@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.ResultActions;
         "spring.kafka.listener.auto-startup=false",
         "spring.datasource.url=jdbc:h2:mem:teste",
         // Nos testes o Hibernate cria as tabelas no H2 e o cardápio vem da própria V2 (as migrações são para o Postgres).
+        "lojacafe.limite.registros-por-hora=1000", // os testes criam muitas contas do mesmo IP
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.defer-datasource-initialization=true",
@@ -130,6 +131,42 @@ class PedidosApiApplicationTests {
         mvc.perform(post("/auth/entrar").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"ninguem@exemplo.com\",\"senha\":\"segredo123\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    private ResultActions entrar(String email, String senha) throws Exception {
+        return mvc.perform(post("/auth/entrar").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"senha\":\"" + senha + "\"}"));
+    }
+
+    private String contaNova(String nome) throws Exception {
+        String email = UUID.randomUUID() + "@exemplo.com";
+        mvc.perform(post("/auth/registrar").contentType(MediaType.APPLICATION_JSON).content(CONTA.formatted(nome, email)))
+                .andExpect(status().isCreated());
+        return email;
+    }
+
+    @Test
+    void senhaErradaVariasVezesBloqueiaMesmoComASenhaCerta() throws Exception {
+        String email = contaNova("Duda");
+        for (int i = 0; i < 5; i++) {
+            entrar(email, "senha-errada").andExpect(status().isUnauthorized());
+        }
+        // a 6ª tentativa já é barrada, até com a senha certa
+        entrar(email, "segredo123").andExpect(status().isTooManyRequests());
+        // outro e-mail do mesmo IP não é afetado
+        novaConta("Outro");
+    }
+
+    @Test
+    void loginCertoZeraAsFalhas() throws Exception {
+        String email = contaNova("Eva");
+        for (int rodada = 0; rodada < 2; rodada++) {
+            for (int i = 0; i < 4; i++) {
+                entrar(email, "senha-errada").andExpect(status().isUnauthorized());
+            }
+            // o login certo zera o contador: 4 falhas de novo ainda não bloqueiam
+            entrar(email, "segredo123").andExpect(status().isOk());
+        }
     }
 
     @Test
