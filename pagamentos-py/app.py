@@ -12,9 +12,11 @@ from datetime import datetime, timezone
 
 from confluent_kafka import Consumer, Producer
 from flask import Flask, jsonify
+from waitress import serve
 
 INSTANCIA = os.getenv("INSTANCIA", "caixa-1")
 PORTA = int(os.getenv("PORTA", "5001"))
+HOST = os.getenv("HOST", "127.0.0.1")
 KAFKA = os.getenv("KAFKA", "localhost:9092")
 # O Kafka do compose só escuta em IPv4; sem isto o log enche de "Connect to ipv6#[::1] failed".
 IPV4 = {"broker.address.family": "v4"}
@@ -125,8 +127,9 @@ if __name__ == "__main__":
     ouvinte = threading.Thread(target=ouvir_kafka, daemon=True)
     ouvinte.start()
     try:
-        # use_reloader=False: o recarregador do Flask subiria o consumidor DUAS vezes.
-        app.run(port=PORTA, use_reloader=False)
+        # Waitress é um servidor de produção (o app.run do Flask é só de desenvolvimento) e não recarrega sozinho,
+        # então o consumidor não sobe duas vezes. host 127.0.0.1: só esta máquina acessa; atrás de um proxy, mude HOST.
+        serve(app, host=HOST, port=PORTA)
     finally:
         parar.set()      # Ctrl+C: avisa o consumidor para fechar
         time.sleep(1.5)  # dá tempo de ele sair do grupo
