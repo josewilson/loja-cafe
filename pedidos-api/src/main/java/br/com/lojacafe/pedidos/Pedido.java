@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,19 +14,20 @@ public class Pedido {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    // Dono do pedido (quem fez login). Nulo só nos pedidos anteriores ao login.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JsonIgnore
+    private Usuario usuario;
     private String cliente;
-    private String item;
-    private int quantidade;
     @Enumerated(EnumType.STRING)
-    private Tamanho tamanho;
-    // BatchSize: a lista de pedidos busca os extras em lotes, não uma consulta por pedido.
-    @ElementCollection(fetch = FetchType.EAGER)
+    private FormaPagamento formaPagamento;
+    private Integer parcelas;
+    // BatchSize: a lista de pedidos busca os itens em lotes, não uma consulta por pedido.
+    @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @JoinColumn(name = "pedido_id")
     @BatchSize(size = 100)
-    @Enumerated(EnumType.STRING)
-    private List<Extra> extras = new ArrayList<>();
+    private List<ItemPedido> itens = new ArrayList<>();
     private String observacao;
-    @Column(precision = 10, scale = 2)
-    private BigDecimal precoUnitario;
     @Column(precision = 10, scale = 2)
     private BigDecimal valor;
 
@@ -39,21 +41,15 @@ public class Pedido {
         // exigido pelo JPA
     }
 
-    /** precoUnitario = preço do cardápio + ajuste do tamanho + extras; valor = quantidade × precoUnitario. */
-    public Pedido(String cliente, Produto produto, int quantidade, Tamanho tamanho, List<Extra> extras, String observacao) {
-        this.cliente = cliente.trim();
-        this.item = produto.getNome();
-        this.quantidade = quantidade;
-        this.tamanho = tamanho == null ? Tamanho.MEDIO : tamanho;
-        // distinct(): extra repetido conta uma vez só.
-        this.extras = extras == null ? new ArrayList<>() : new ArrayList<>(extras.stream().distinct().toList());
+    /** valor = soma dos itens (cada item já vem calculado). Parcelas só existem no crédito. */
+    public Pedido(Usuario usuario, FormaPagamento forma, Integer parcelas, String observacao, List<ItemPedido> itens) {
+        this.usuario = usuario;
+        this.cliente = usuario.getNome();
+        this.formaPagamento = forma;
+        this.parcelas = forma == FormaPagamento.CREDITO && parcelas != null ? parcelas : 1;
+        this.itens = new ArrayList<>(itens);
         this.observacao = observacao == null || observacao.isBlank() ? null : observacao.trim();
-        BigDecimal unitario = produto.getPreco().add(this.tamanho.getAjuste());
-        for (Extra extra : this.extras) {
-            unitario = unitario.add(extra.getPreco());
-        }
-        this.precoUnitario = unitario;
-        this.valor = unitario.multiply(BigDecimal.valueOf(quantidade));
+        this.valor = itens.stream().map(ItemPedido::getValor).reduce(BigDecimal.ZERO, BigDecimal::add);
         this.status = StatusPedido.AGUARDANDO_PAGAMENTO;
         this.criadoEm = Instant.now();
     }
@@ -71,12 +67,10 @@ public class Pedido {
 
     public Long getId() { return id; }
     public String getCliente() { return cliente; }
-    public String getItem() { return item; }
-    public int getQuantidade() { return quantidade; }
-    public Tamanho getTamanho() { return tamanho; }
-    public List<Extra> getExtras() { return extras; }
+    public FormaPagamento getFormaPagamento() { return formaPagamento; }
+    public Integer getParcelas() { return parcelas; }
+    public List<ItemPedido> getItens() { return itens; }
     public String getObservacao() { return observacao; }
-    public BigDecimal getPrecoUnitario() { return precoUnitario; }
     public BigDecimal getValor() { return valor; }
     public StatusPedido getStatus() { return status; }
     public String getMotivo() { return motivo; }

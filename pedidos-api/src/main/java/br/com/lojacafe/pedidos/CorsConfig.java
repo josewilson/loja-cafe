@@ -17,13 +17,20 @@ public class CorsConfig implements WebMvcConfigurer {
     @Value("${lojacafe.cors.origem:http://localhost:5173}")
     private String origem;
 
+    private final Autenticacao autenticacao;
+
+    public CorsConfig(Autenticacao autenticacao) {
+        this.autenticacao = autenticacao;
+    }
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**").allowedOrigins(origem).allowedMethods("GET", "POST");
+        registry.addMapping("/**").allowedOrigins(origem).allowedMethods("GET", "POST").allowedHeaders("Authorization", "Content-Type");
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(autenticacao).addPathPatterns("/pedidos/**", "/pedidos");
         registry.addInterceptor(new HandlerInterceptor() {
             @Override
             public boolean preHandle(HttpServletRequest req, HttpServletResponse res, Object handler) {
