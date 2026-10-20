@@ -23,8 +23,11 @@ public class CozinhaController {
     private final EstoqueLojaRepository estoque;
     private final AuditoriaRepository auditor;
     private final FichaController consumo;
+    private final PagamentosKafka pagamentos;
 
-    public CozinhaController(PedidoRepository repository, EstoqueLojaRepository estoque, AuditoriaRepository auditor, FichaController consumo) {
+    public CozinhaController(PedidoRepository repository, EstoqueLojaRepository estoque, AuditoriaRepository auditor, FichaController consumo,
+                              PagamentosKafka pagamentos) {
+        this.pagamentos = pagamentos;
         this.consumo = consumo;
         this.repository = repository;
         this.estoque = estoque;
@@ -68,6 +71,31 @@ public class CozinhaController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "O pedido está " + antes + "; só avança de " + novo.anterior() + " para " + novo);
         }
         auditor.registrar(usuario, pedido.getLojaId(), "PREPARO_ALTERADO", "Pedido", id, antes + " -> " + novo);
+        return repository.save(pedido);
+    }
+
+    public record Pagamento(boolean aprovado, @Size(max = 30) String nsu) {}
+
+    /**
+     * Cartão passado na maquininha: o atendente diz se foi aprovado (com o NSU do comprovante, se quiser) ou recusado.
+     * Só vale em pedido CREDITO ou DEBITO que ainda aguarda o pagamento. Recusado devolve estoque e insumos, como no Pagamentos.
+     */
+    @PutMapping("/pedidos/{id}/pagamento")
+    @Papeis({Papel.ATENDENTE, Papel.GERENTE})
+    @Transactional
+    public Pedido confirmarPagamento(@RequestAttribute(AuthController.USUARIO) Usuario usuario, @PathVariable Long id,
+                                     @Valid @RequestBody Pagamento corpo) {
+        Pedido pedido = carregar(usuario, id);
+        if (pedido.getFormaPagamento() != FormaPagamento.CREDITO && pedido.getFormaPagamento() != FormaPagamento.DEBITO) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Só pagamento em cartão (crédito ou débito) é confirmado à mão");
+        }
+        String motivo = corpo.aprovado() ? null : "recusado na maquininha";
+        if (!pagamentos.concluir(pedido, corpo.aprovado(), motivo, "maquininha")) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "O pagamento deste pedido já foi decidido");
+        }
+        pedido.registrarNsu(corpo.aprovado() ? corpo.nsu() : null);
+        auditor.registrar(usuario, pedido.getLojaId(), corpo.aprovado() ? "PAGAMENTO_CONFIRMADO" : "PAGAMENTO_RECUSADO", "Pedido", id,
+                pedido.getNsu() == null ? null : "nsu " + pedido.getNsu());
         return repository.save(pedido);
     }
 

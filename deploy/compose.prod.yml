@@ -105,6 +105,7 @@ services:
       INSTANCIA: caixa-1
       # Pix (Fase 5). automatico = como antes (aprova na hora, sem cobrança). Veja deploy/.env.example.
       PIX_PROVEDOR: ${PIX_PROVEDOR:-automatico}
+      CARTAO_MODO: ${CARTAO_MODO:-simulado}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
       PUBLIC_URL: ${PUBLIC_URL:-}

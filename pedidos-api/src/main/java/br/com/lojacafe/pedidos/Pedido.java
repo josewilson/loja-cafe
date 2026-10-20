@@ -39,6 +39,8 @@ public class Pedido {
     private Preparo preparo = Preparo.NA_FILA;
     private String motivo;
     private String processadoPor;
+    // Comprovante do cartão aprovado na maquininha (opcional, digitado pelo atendente).
+    private String nsu;
     private Instant criadoEm;
     // Cobrança Pix (só PIX): chega no evento AGUARDANDO do Pagamentos e some da resposta quando o pedido é concluído.
     @JsonIgnore
@@ -81,6 +83,10 @@ public class Pedido {
         this.motivo = motivo;
         this.processadoPor = instancia;
         return true;
+    }
+
+    public void registrarNsu(String nsu) {
+        this.nsu = nsu == null || nsu.isBlank() ? null : nsu.trim();
     }
 
     /** Guarda a cobrança Pix criada pelo Pagamentos. Só vale enquanto o pedido ainda aguarda. */
@@ -138,5 +144,6 @@ public class Pedido {
     public Preparo getPreparo() { return preparo; }
     public String getMotivo() { return motivo; }
     public String getProcessadoPor() { return processadoPor; }
+    public String getNsu() { return nsu; }
     public Instant getCriadoEm() { return criadoEm; }
 }

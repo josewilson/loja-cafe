@@ -45,8 +45,8 @@ Tamanhos, extras e formas de pagamento aceitos. Resposta `200`:
 | Forma de pagamento | `parcelasMax` | Como o Pagamentos decide (simulado) |
 |---|---|---|
 | `PIX` | 1 | Sem provedor de Pix (`PIX_PROVEDOR=automatico`, o padrão): aprova em ~1 s, sem limite. Com provedor: gera a cobrança, o pedido fica `AGUARDANDO_PAGAMENTO` com o campo `pix` até o cliente pagar (`PAGO`) ou a cobrança vencer (`RECUSADO`, motivo `pix expirado`) |
-| `CREDITO` | 3 | ~3 s; recusa acima de R$ 100,00 |
-| `DEBITO` | 1 | ~3 s; recusa acima de R$ 100,00 |
+| `CREDITO` | 3 | `CARTAO_MODO=simulado` (padrão): ~3 s; recusa acima de R$ 100,00. `CARTAO_MODO=maquininha`: o Pagamentos não decide, o pedido espera o atendente confirmar (`PUT /pedidos/{id}/pagamento`) |
+| `DEBITO` | 1 | Igual ao crédito |
 | `DINHEIRO` | 1 | Pagamento no balcão: aprova na hora |
 
 ### GET /saude
@@ -101,7 +101,7 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
 `PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`, `INSUMO_CRIADO`, `INSUMO_ALTERADO`, `FICHA_ALTERADA`, `INSUMO_AJUSTADO`
-(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6) e `RECIBO_EMITIDO` (Fase 6).
+(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6), `RECIBO_EMITIDO` (Fase 6), `PAGAMENTO_CONFIRMADO` e `PAGAMENTO_RECUSADO` (Fase 7a).
 
 ## Cardápio e pedidos (exigem token)
 
@@ -146,7 +146,7 @@ Pedidos **da loja do usuário**, **mais novo primeiro** (padrão 100, de 1 a 200
     "itens": [ { "produtoId": 2, "item": "Cappuccino", "quantidade": 2, "tamanho": "GRANDE",
                  "extras": ["CHANTILLY", "CANELA"], "precoUnitario": 17.50, "valor": 35.00 } ],
     "valor": 35.00, "status": "AGUARDANDO_PAGAMENTO", "preparo": "NA_FILA", "motivo": null, "processadoPor": null,
-    "pix": null, "criadoEm": "2026-10-17T16:05:00Z" }
+    "nsu": null, "pix": null, "criadoEm": "2026-10-17T16:05:00Z" }
 ]
 ```
 `item` é o nome do produto no momento do pedido.
@@ -245,6 +245,13 @@ Grava `PEDIDOS_REENFILEIRADOS` na auditoria (da rede, sem loja).
 ### GET /cozinha?limite=N  (todos os papéis)
 A fila da loja: só pedidos **`PAGO`** com `preparo` em `NA_FILA`, `PREPARANDO` ou `PRONTO`, do **mais antigo para o mais novo**
 (padrão 100, de 1 a 200). O `ADMIN` informa `?lojaId=`. Mesmo formato de `GET /pedidos`.
+
+### PUT /pedidos/{id}/pagamento  (`ATENDENTE`, `GERENTE`)
+Cartão passado na maquininha (Fase 7a): o atendente informa o que ela respondeu. Corpo: `{ "aprovado": true, "nsu": "123456" }` (`nsu` opcional, até 30 caracteres, só vale se aprovado).
+- Só em pedido `CREDITO` ou `DEBITO` que ainda está `AGUARDANDO_PAGAMENTO`. Outra forma, ou pagamento já decidido: `409`. Outra loja: `403`. Inexistente: `404`.
+- Aprovado: o pedido vira `PAGO` (`processadoPor = "maquininha"`) e guarda o `nsu`. Recusado: vira `RECUSADO` com `motivo = "recusado na maquininha"`, e o estoque e os insumos voltam.
+- Vale a primeira decisão: se o Pagamentos (modo `simulado`) também decidir, a segunda é ignorada. Resposta `200` com o pedido. Auditoria: `PAGAMENTO_CONFIRMADO` ou `PAGAMENTO_RECUSADO`.
+- O pedido ganha o campo `nsu` (`null` até haver comprovante).
 
 ### PUT /pedidos/{id}/preparo  (`COZINHA`, `GERENTE`, `ATENDENTE`)
 Corpo: `{ "preparo": "PREPARANDO" }`. Só avança um passo por vez, e só em pedido `PAGO` da própria loja:

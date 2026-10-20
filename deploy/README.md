@@ -47,6 +47,10 @@ ENV_FILE=deploy/.env bash scripts/e2e.sh https://SEU-ENDERECO/api      # o teste
 (Com `localhost`, use `CURL_OPTS=-k` no segundo comando, para aceitar o certificado de teste.) O `e2e.sh` cria lojas e produtos de
 teste no banco: use-o num ambiente de teste, não no sistema em uso.
 
+## Cartão
+`CARTAO_MODO` em `deploy/.env`: `simulado` (padrão, aprova sozinho até R$ 100,00; só para teste) ou `maquininha` (o atendente confirma na tela o que a maquininha respondeu, com o NSU opcional;
+use esta em produção). Contrato em `specs/pagamentos.md`. Mudar o valor: edite o `.env` e `docker compose -f deploy/compose.prod.yml up -d pagamentos`.
+
 ## Pix
 Três modos, em `PIX_PROVEDOR` (`deploy/.env`):
 - `automatico` (padrão): Pix simulado, aprova na hora. **Não use para vender.**

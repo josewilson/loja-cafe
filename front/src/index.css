@@ -339,3 +339,7 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
   .recibo-aviso { text-align: center; font-weight: bold; }
   @page { size: 80mm auto; margin: 4mm; }
 }
+
+/* Cartão na maquininha: NSU e os dois botões */
+.maquininha { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.maquininha input { flex: 1 1 120px; min-width: 0; }

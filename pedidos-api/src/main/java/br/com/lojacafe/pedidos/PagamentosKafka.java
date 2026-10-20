@@ -93,19 +93,29 @@ public class PagamentosKafka {
                 }
                 return;
             }
-            // concluir() ignora repetição: o mesmo resultado duas vezes não muda nada.
-            if (pedido.concluir("APROVADO".equals(resultado.status()), resultado.motivo(), resultado.instancia())) {
-                repository.save(pedido);
-                if (pedido.getStatus() == StatusPedido.RECUSADO && pedido.getPreparo() != Preparo.CANCELADO) {
-                    // Só quem concluiu devolve: resultado repetido cai no "else" e não repõe de novo.
-                    // Pedido que o gerente já cancelou também não repõe: o cancelamento já devolveu.
-                    pedido.getItens().forEach(i -> estoque.repor(pedido.getLojaId(), i.getProdutoId(), i.getQuantidade()));
-                    consumo.devolver(pedido); // recusado nunca foi preparado: os insumos voltam
-                }
+            if (concluir(pedido, "APROVADO".equals(resultado.status()), resultado.motivo(), resultado.instancia())) {
                 log.info("Pedido {} agora está {}", pedido.getId(), pedido.getStatus());
             } else {
                 log.info("Pedido {} já estava concluído; resultado repetido ignorado", pedido.getId());
             }
         }, () -> log.warn("Resultado para pedido {} que não existe aqui", resultado.pedidoId()));
+    }
+
+    /**
+     * Aplica a decisão de pagamento a um pedido (já lido com trava): vale a primeira, a repetição não muda nada.
+     * Serve ao Kafka e à confirmação feita à mão no balcão (cartão na maquininha). Devolve false se já estava concluído.
+     */
+    public boolean concluir(Pedido pedido, boolean aprovado, String motivo, String instancia) {
+        if (!pedido.concluir(aprovado, motivo, instancia)) {
+            return false;
+        }
+        repository.save(pedido);
+        if (pedido.getStatus() == StatusPedido.RECUSADO && pedido.getPreparo() != Preparo.CANCELADO) {
+            // Só quem concluiu devolve: resultado repetido não repõe de novo.
+            // Pedido que o gerente já cancelou também não repõe: o cancelamento já devolveu.
+            pedido.getItens().forEach(i -> estoque.repor(pedido.getLojaId(), i.getProdutoId(), i.getQuantidade()));
+            consumo.devolver(pedido); // recusado nunca foi preparado: os insumos voltam
+        }
+        return true;
     }
 }

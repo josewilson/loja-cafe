@@ -10,6 +10,7 @@ Configuração por variável de ambiente (o serviço também lê `infra/.env` so
 | `KAFKA` | `localhost:9092` | Broker (no Docker de produção: `kafka:19092`) |
 | `KAFKA_USER` · `KAFKA_PASSWORD` | obrigatórias | Login SASL/PLAIN do broker (sem elas o serviço recusa iniciar) |
 
+| `CARTAO_MODO` | `simulado` | `simulado` (regra de R$ 100,00) ou `maquininha` (o balcão confirma; veja "Cartão" abaixo) |
 | `PIX_PROVEDOR` | `automatico` | Como o Pix é cobrado: `automatico`, `simulado` ou `mercadopago` (seção "Pix" abaixo) |
 | `MP_ACCESS_TOKEN` · `MP_WEBHOOK_SECRET` | — | Só com `mercadopago`: token da API e chave secreta do webhook (as duas obrigatórias) |
 | `PUBLIC_URL` | — | Endereço público do sistema; vira o `notification_url` das cobranças. Sem ele só vale a conferência periódica |
@@ -30,6 +31,10 @@ a mesma tabela está em `specs/api.md`). O atraso base ("falar com o banco") é 
 Evento sem `formaPagamento` (versão 1) ou com forma desconhecida: vale a regra do **crédito**.
 Evento quebrado (JSON inválido, sem `pedidoId` ou `valor`, `valor` negativo, `NaN` ou não numérico) é **ignorado**:
 uma linha de log ("evento inválido ignorado") e o serviço segue com o próximo, sem derrubar o consumidor.
+
+## Cartão na maquininha (Fase 7a)
+Com `CARTAO_MODO=maquininha`, o Pagamentos **não publica nada** para `CREDITO` e `DEBITO` (registra no log que a decisão é do balcão): o pedido fica
+`AGUARDANDO_PAGAMENTO` até o atendente chamar `PUT /pedidos/{id}/pagamento` na API (`specs/api.md`). Pix e dinheiro não mudam. Reenfileirar é seguro: o Pagamentos continua ignorando o cartão.
 
 ## Pix (Fase 5)
 A linha `PIX` da tabela acima vale com `PIX_PROVEDOR=automatico` (o padrão: nada muda). Com `simulado` ou `mercadopago`, o Pix passa a ser uma **cobrança**:

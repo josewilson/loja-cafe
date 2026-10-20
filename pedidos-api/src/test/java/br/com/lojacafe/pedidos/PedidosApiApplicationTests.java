@@ -504,6 +504,54 @@ class PedidosApiApplicationTests {
         GET(t, "/pedidos/" + pago + "/recibo").andExpect(status().isConflict());                       // cancelado não tem recibo
     }
 
+    // ---------- cartão na maquininha (Fase 7a) ----------
+
+    private long lancarCartao(String token, String forma, int produtoId, int quantidade) throws Exception {
+        String corpo = POST(token, "/pedidos", "{\"formaPagamento\":\"" + forma + "\",\"itens\":[{\"produtoId\":" + produtoId
+                + ",\"quantidade\":" + quantidade + "}]}").andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(corpo, "$.id")).longValue();
+    }
+
+    @Test
+    void atendenteConfirmaOCartaoNaMaquininhaComNsu() throws Exception {
+        String t = token(Papel.ATENDENTE, novaLoja());
+        long id = lancarCartao(t, "CREDITO", 3, 1);
+        PUT(t, "/pedidos/" + id + "/pagamento", "{\"aprovado\":true,\"nsu\":\" 123456 \"}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAGO")).andExpect(jsonPath("$.nsu").value("123456"))
+                .andExpect(jsonPath("$.processadoPor").value("maquininha"));
+        assertEquals(49, estoque(t, 3));                                                         // venda concluída: o estoque continua baixado
+        PUT(t, "/pedidos/" + id + "/pagamento", "{\"aprovado\":false}").andExpect(status().isConflict()); // já decidido
+        resultado(id, "RECUSADO");                                                               // e o Pagamentos atrasado não desfaz
+        GET(t, "/pedidos?limite=1").andExpect(jsonPath("$[0].status").value("PAGO"));
+    }
+
+    @Test
+    void cartaoRecusadoNaMaquininhaDevolveOEstoque() throws Exception {
+        String t = token(Papel.ATENDENTE, novaLoja());
+        long id = lancarCartao(t, "DEBITO", 3, 2);
+        assertEquals(48, estoque(t, 3));
+        PUT(t, "/pedidos/" + id + "/pagamento", "{\"aprovado\":false,\"nsu\":\"999\"}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RECUSADO")).andExpect(jsonPath("$.motivo").value("recusado na maquininha"))
+                .andExpect(jsonPath("$.nsu").doesNotExist());
+        assertEquals(50, estoque(t, 3));
+    }
+
+    @Test
+    void confirmacaoDeCartaoTemSuasRegras() throws Exception {
+        long loja = novaLoja();
+        String t = token(Papel.ATENDENTE, loja);
+        long pix = lancar(t, 3, 1);                                  // Pix não se confirma à mão
+        PUT(t, "/pedidos/" + pix + "/pagamento", "{\"aprovado\":true}").andExpect(status().isConflict());
+        long cartao = lancarCartao(t, "CREDITO", 3, 1);
+        PUT(null, "/pedidos/" + cartao + "/pagamento", "{\"aprovado\":true}").andExpect(status().isUnauthorized());
+        PUT(token(Papel.COZINHA, loja), "/pedidos/" + cartao + "/pagamento", "{\"aprovado\":true}").andExpect(status().isForbidden());
+        PUT(token(Papel.ATENDENTE, novaLoja()), "/pedidos/" + cartao + "/pagamento", "{\"aprovado\":true}").andExpect(status().isForbidden()); // outra loja
+        PUT(t, "/pedidos/" + cartao + "/pagamento", "{\"aprovado\":true,\"nsu\":\"" + "9".repeat(31) + "\"}").andExpect(status().isBadRequest());
+        PUT(t, "/pedidos/999999/pagamento", "{\"aprovado\":true}").andExpect(status().isNotFound());
+        PUT(token(Papel.GERENTE, loja), "/pedidos/" + cartao + "/pagamento", "{\"aprovado\":true}").andExpect(status().isOk()); // gerente também pode
+        GET(token(Papel.GERENTE, loja), "/auditoria").andExpect(jsonPath("$[?(@.acao=='PAGAMENTO_CONFIRMADO' && @.entidadeId=='" + cartao + "')]").isNotEmpty());
+    }
+
     // ---------- pedidos ----------
 
     @Test

@@ -76,6 +76,28 @@ class Saude(unittest.TestCase):
         self.assertFalse(resposta.get_json()["ok"])
 
 
+
+class CartaoNaMaquininha(unittest.TestCase):
+    def setUp(self):
+        antes = app.CARTAO_MODO
+        app.CARTAO_MODO = "maquininha"
+        self.addCleanup(lambda: setattr(app, "CARTAO_MODO", antes))
+
+    def test_cartao_nao_e_decidido_pelo_pagamentos(self):
+        for forma in ("CREDITO", "DEBITO"):
+            with self.subTest(forma=forma):
+                self.assertIsNone(app.resultado_do_evento(json.dumps({"pedidoId": 7, "valor": 250.0, "formaPagamento": forma})))
+
+    def test_pix_e_dinheiro_continuam_como_antes(self):
+        for forma in ("PIX", "DINHEIRO"):
+            with self.subTest(forma=forma):
+                self.assertEqual(app.resultado_do_evento(json.dumps({"pedidoId": 7, "valor": 250.0, "formaPagamento": forma}))["status"], "APROVADO")
+
+    def test_no_modo_simulado_o_cartao_continua_com_a_regra_de_100(self):
+        app.CARTAO_MODO = "simulado"
+        self.assertEqual(app.resultado_do_evento(json.dumps({"pedidoId": 7, "valor": 250.0, "formaPagamento": "CREDITO"}))["status"], "RECUSADO")
+
+
 class ProdutorFalso:
     def __init__(self):
         self.enviados = []

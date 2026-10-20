@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { buscarRecibo, cancelarPedido, criarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
+import { buscarRecibo, cancelarPedido, confirmarPagamento, criarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
 import Topo from './Topo'
 
 const reais = (n) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -47,6 +47,7 @@ export default function Loja({ sessao, aoSair, topo }) {
   const [pedidos, setPedidos] = useState([])
   const [offline, setOffline] = useState(false)
   const [recibo, setRecibo] = useState(null) // recibo aberto para impressão
+  const [nsus, setNsus] = useState({}) // NSU digitado por pedido (cartão na maquininha)
 
   const aguardando = pedidos.filter((p) => p.status === 'AGUARDANDO_PAGAMENTO').length
 
@@ -149,6 +150,18 @@ export default function Loja({ sessao, aoSair, topo }) {
     window.print()
     return () => window.removeEventListener('afterprint', limpar)
   }, [recibo])
+
+  // Cartão: o atendente diz o que a maquininha respondeu.
+  async function decidirCartao(p, aprovado) {
+    setErro(null)
+    try {
+      await confirmarPagamento(p.id, aprovado, nsus[p.id]?.trim())
+      setPedidos(await listarPedidos(20))
+    } catch (falha) {
+      if (falha.status === 401) return aoSair()
+      setErro(falha)
+    }
+  }
 
   async function cancelar(p) {
     if (!window.confirm(`Cancelar o pedido #${p.id} de ${p.cliente}? O estoque volta.`)) return
@@ -488,6 +501,19 @@ export default function Loja({ sessao, aoSair, topo }) {
                   </span>
                   {p.processadoPor && <span className="caixa">{p.processadoPor}</span>}
                 </div>
+                {p.status === 'AGUARDANDO_PAGAMENTO' && (p.formaPagamento === 'CREDITO' || p.formaPagamento === 'DEBITO') && (
+                  <div className="acoes maquininha">
+                    <input
+                      aria-label="NSU do comprovante (opcional)"
+                      placeholder="NSU (opcional)"
+                      maxLength={30}
+                      value={nsus[p.id] ?? ''}
+                      onChange={(e) => setNsus({ ...nsus, [p.id]: e.target.value })}
+                    />
+                    <button type="button" className="botao" onClick={() => decidirCartao(p, true)}>Aprovado na maquininha</button>
+                    <button type="button" className="botao perigo" onClick={() => decidirCartao(p, false)}>Recusado</button>
+                  </div>
+                )}
                 {p.status === 'PAGO' && p.preparo !== 'CANCELADO' && (
                   <div className="acoes">
                     <button type="button" className="link" onClick={() => imprimirRecibo(p)}>Imprimir recibo</button>

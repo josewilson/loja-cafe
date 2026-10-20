@@ -49,6 +49,11 @@ LIMITE = 100.00  # acima disso, o "cartão de teste" recusa
 # Pix (specs/pagamentos.md): "automatico" = como nos Atos anteriores (aprova em ~1 s, sem cobrança);
 # "simulado" = cobrança falsa que você paga com POST /pix/simular/<id>; "mercadopago" = Pix de verdade.
 PIX_PROVEDOR = os.getenv("PIX_PROVEDOR") or "automatico"
+# Cartão (specs/pagamentos.md): "simulado" = aprova até R$ 100,00 como nos Atos anteriores; "maquininha" = o Pagamentos não decide:
+# o atendente confirma no balcão (PUT /pedidos/{id}/pagamento) o que a maquininha disse.
+CARTAO_MODO = os.getenv("CARTAO_MODO") or "simulado"
+if CARTAO_MODO not in ("simulado", "maquininha"):
+    raise SystemExit(f"CARTAO_MODO inválido: {CARTAO_MODO!r} (simulado ou maquininha)")
 PIX_EXPIRA_MINUTOS = int(os.getenv("PIX_EXPIRA_MINUTOS", "10"))
 PIX_CONSULTA_SEGUNDOS = int(os.getenv("PIX_CONSULTA_SEGUNDOS", "30"))  # rede de segurança para webhook que não chegou
 MP_WEBHOOK_SECRET = os.getenv("MP_WEBHOOK_SECRET", "")
@@ -95,7 +100,7 @@ def decidir(valor, forma=None):
 
 
 def resultado_do_evento(texto):
-    """Lê um evento de pedidos-criados e devolve o resultado a publicar.
+    """Lê um evento de pedidos-criados e devolve o resultado a publicar (ou None quando este serviço não decide: cartão na maquininha).
 
     Evento quebrado (JSON ruim, sem pedidoId/valor, valor negativo ou NaN) levanta
     ValueError/KeyError/TypeError: quem chama registra e segue, sem derrubar a thread.
@@ -107,6 +112,8 @@ def resultado_do_evento(texto):
         raise ValueError(f"valor inválido: {pedido['valor']!r}")
     if PIX is not None and pedido.get("formaPagamento") == "PIX":
         return cobrar_pix(pedido_id, valor)
+    if CARTAO_MODO == "maquininha" and pedido.get("formaPagamento") in ("CREDITO", "DEBITO"):
+        return None  # quem decide é a maquininha, confirmada pelo atendente na API
     status, motivo = decidir(valor, pedido.get("formaPagamento"))
     return montar(pedido_id, status, motivo)
 
@@ -205,6 +212,9 @@ def ouvir_kafka():
             # Evento quebrado não pode parar o caixa: registra, pula e segue com o próximo.
             print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · "
                   f"evento inválido ignorado ({erro!r})", flush=True)
+            continue
+        if resultado is None:
+            print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · cartão na maquininha: a decisão é do balcão", flush=True)
             continue
         publicar(resultado)  # mesma chave (pedidoId) do evento de entrada
         print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · "

@@ -164,8 +164,8 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 118 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
-cd pagamentos-py && python -m unittest -v       # 24 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
+cd pedidos-api   && ./mvnw test                 # 121 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
+cd pagamentos-py && python -m unittest -v       # 27 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
 cd front         && npm run lint                # oxlint
 node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
 bash scripts/e2e.sh                             # fluxo completo com o sistema no ar (14 passos)

@@ -90,6 +90,7 @@ const alterar = (caminho, corpo) =>
 
 export const listarCozinha = () => pedir('/cozinha')
 export const mudarPreparo = (id, preparo) => alterar(`/pedidos/${id}/preparo`, { preparo })
+export const confirmarPagamento = (id, aprovado, nsu) => alterar(`/pedidos/${id}/pagamento`, nsu ? { aprovado, nsu } : { aprovado }) // cartão na maquininha
 export const cancelarPedido = (id, motivo) => alterar(`/pedidos/${id}/cancelar`, motivo ? { motivo } : {})
 
 // Cardápio da rede (ADMIN)
