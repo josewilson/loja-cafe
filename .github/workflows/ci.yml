@@ -159,3 +159,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Teste de backup e restauração num Postgres descartável
         run: bash scripts/testar-backup.sh
+
+  specs:
+    name: specs (o codigo e os contratos dizem a mesma coisa)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Conferir rotas, eventos, topicos, papeis e status contra specs/
+        run: node scripts/conferir-specs.js

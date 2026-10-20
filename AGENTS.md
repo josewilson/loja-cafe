@@ -2,6 +2,7 @@
 
 Projeto de aula (Cap 03, Kafka). Um sistema pequeno, de ponta a ponta, construído em atos.
 Simplicidade vale mais que "boas práticas de produção": código curto, legível, comentado em português.
+(Depois dos Atos 1 a 5 o projeto seguiu um plano em fases rumo à produção: o estado está no `README.md`. As regras abaixo continuam valendo.)
 
 ## Peças e portas
 | Pasta | O que é | Porta |
@@ -12,6 +13,9 @@ Simplicidade vale mais que "boas práticas de produção": código curto, legív
 | `analytics-py/` | Script Python, sem servidor web | — |
 | `infra/compose.yml` | Postgres (5433) + Kafka (9092) + painel kafka-ui (8090) | 5433 / 9092 / 8090 |
 | `deploy/` | Produção: `compose.prod.yml` + Caddy (HTTPS). Só 80/443 expostas; a API fica em `/api` | 80 / 443 |
+| `deploy/backup/` | Backup criptografado do Postgres, restauração e retenção (scripts de shell, imagem própria) | — |
+| `scripts/` | `e2e.sh` (ponta a ponta), `testar-backup.sh`, `conferir-specs.js`, `criar-usuario.sh` | — |
+| `.github/workflows/` | CI: testes, ponta a ponta, pilha de produção, backup e conferência das specs | — |
 
 ## Regras
 - Os contratos estão em `specs/`. **Não invente** endpoint, campo, tópico ou status que não esteja lá.
@@ -20,6 +24,11 @@ Simplicidade vale mais que "boas práticas de produção": código curto, legív
 - Python sempre em `.venv` dentro da pasta da peça. Dependências em `requirements.txt`.
 - Spring: pacote `br.com.lojacafe.pedidos`, sem camadas extras (controller, entidade, repositório e
   no máximo uma classe por integração). Nada de arquitetura hexagonal neste projeto.
-- Senhas e chaves só em `infra/.env` (ignorado pelo Git) ou variáveis de ambiente; nunca no código. O modelo é `infra/.env.example`.
+- Senhas e chaves só em `infra/.env` (desenvolvimento) ou `deploy/.env` (produção), ambos ignorados pelo Git, ou variáveis de ambiente; nunca no código. Os modelos são `infra/.env.example` e `deploy/.env.example`.
 - Não rode `docker compose down -v` (apaga os eventos do Kafka e os pedidos do Postgres). Para parar: `docker compose stop`.
 - Ao terminar cada tarefa: diga como eu rodo, o que devo ver e qual comando prova que funciona.
+
+## Antes de dar uma tarefa por pronta
+- `node scripts/conferir-specs.js`: o código e as `specs/` dizem a mesma coisa (rotas, eventos, tópicos, papéis, status). Falha se divergirem.
+- `cd pedidos-api && ./mvnw test` · `cd pagamentos-py && python -m unittest` · `cd front && npm run lint`.
+- Com o sistema no ar: `bash scripts/e2e.sh` (fluxo completo, 14 passos). O CI roda tudo isso a cada push.

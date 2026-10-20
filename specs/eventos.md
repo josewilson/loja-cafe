@@ -1,6 +1,8 @@
 # Contrato dos eventos (Kafka) · usado a partir do Ato 3
 
-Broker: `localhost:9092`. Valor em **JSON texto (UTF-8)**; chave = `pedidoId` como texto.
+Broker: `localhost:9092` em desenvolvimento e `kafka:19092` dentro do Docker de produção. **O broker exige login**: `security.protocol=SASL_PLAINTEXT`,
+`sasl.mechanism=PLAIN`, usuário e senha em `KAFKA_USER` e `KAFKA_PASSWORD` (`infra/.env` ou `deploy/.env`). Cliente sem login não conecta.
+Valor em **JSON texto (UTF-8)**; chave = `pedidoId` como texto.
 Os dois lados (Java e Python) leem e escrevem String e convertem com a biblioteca JSON da linguagem.
 Não use serializador que grave tipo Java em header.
 Produtor em Python (confluent-kafka) usa `"partitioner": "murmur2_random"`, o mesmo cálculo
@@ -16,6 +18,8 @@ Quem publica: `pedidos-api`, logo depois de gravar o pedido.
 `valor` = total do pedido. `lojaId` = a loja que vendeu. `formaPagamento`: `PIX`, `CREDITO`, `DEBITO` ou `DINHEIRO`.
 **Versão 2** (eventos antigos no tópico): igual, sem `lojaId`. **Versão 1**: `"item"` e `"quantidade"` soltos, sem `itens`
 nem `formaPagamento`. Quem lê aceita as três; sem `formaPagamento`, vale a regra do cartão de crédito.
+**Reenvio:** `POST /pedidos/reenfileirar` (veja `specs/api.md`) publica este evento de novo para pedidos que ainda aguardam pagamento.
+Quem lê já ignora a repetição: o primeiro resultado vale.
 
 ## Tópico `pagamentos-resultados` (3 partições)
 Quem publica: `pagamentos-py`, depois de decidir.
@@ -33,3 +37,7 @@ Quem publica: `pagamentos-py`, depois de decidir.
 | `analytics` | os dois tópicos | analytics-py |
 
 Todos com `auto.offset.reset = earliest`: grupo que nunca leu começa do início do tópico.
+
+## Retenção
+As mensagens ficam **7 dias** no Kafka (o padrão do Kafka; fixo em `deploy/compose.prod.yml`). "Quem chega depois lê tudo" vale dentro dessa janela:
+o Postgres é a fonte da verdade dos pedidos, e o Kafka não entra no backup.

@@ -164,22 +164,28 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 31 testes: regras, validação, login, estoque e HTTP (H2 em memória, sem Docker)
+cd pedidos-api   && ./mvnw test                 # 113 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
 cd pagamentos-py && python -m unittest -v       # 9 testes: regras, formas de pagamento e evento inválido
 cd front         && npm run lint                # oxlint
+node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
+bash scripts/e2e.sh                             # fluxo completo com o sistema no ar (14 passos)
+bash scripts/testar-backup.sh                   # backup, cifra, cópia de fora, restauração e retenção (num Postgres descartável)
 ```
 
 ## Estrutura
 
 ```
 loja-cafe/
-├── front/            React + Vite (api.js, App.jsx, index.css)
-├── pedidos-api/      Spring Boot (controllers, entidades, repositórios, eventos Kafka)
-├── pagamentos-py/    Flask + consumidor Kafka em thread própria
+├── front/            React + Vite: login e telas por papel (balcão, cozinha, gerência, ADMIN)
+├── pedidos-api/      Spring Boot (controllers, entidades, repositórios, migrações Flyway, eventos Kafka)
+├── pagamentos-py/    Flask + Waitress + consumidor Kafka em thread própria
 ├── analytics-py/     Painel de vendas lido do Kafka
-├── infra/            compose.yml (Postgres, Kafka, kafka-ui)
-├── specs/            Contratos e coleção do Insomnia
+├── infra/            Desenvolvimento: compose.yml (Postgres, Kafka, kafka-ui) e .env.example
+├── deploy/           Produção: compose.prod.yml, Caddy (HTTPS), backup criptografado, restauração, status.sh
+├── scripts/          e2e.sh, testar-backup.sh, conferir-specs.js, criar-usuario.sh
+├── specs/            Contratos (api, eventos, pagamentos) e coleção do Insomnia
 ├── docs/             Imagens do README
+├── .github/          CI: testes, ponta a ponta, pilha de produção, backup e conferência das specs
 ├── AGENTS.md         Regras do projeto (para pessoas e agentes de IA)
 └── COMO-RODAR.md     Como subir cada peça
 ```

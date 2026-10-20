@@ -25,7 +25,7 @@ A porta 5433 existe porque a 5432 costuma estar ocupada por outro Postgres; para
 1. Nova conexão → **PostgreSQL**.
 2. Host `localhost`, porta `5433`, banco `loja_cafe`, usuário e senha do `infra/.env` (`POSTGRES_USER` / `POSTGRES_PASSWORD`). Testar e salvar.
 3. Para criar **outro banco seu**: botão direito em *Databases* → *Create New Database*. O usuário `loja` é administrador do servidor.
-4. As tabelas da API (`loja`, `usuario`, `sessao`, `produto`, `estoque_loja`, `pedido`, `item_pedido`, `item_pedido_extras`, `auditoria`) aparecem em `loja_cafe` → `Schemas` → `public` depois que a API sobe.
+4. As tabelas da API (`loja`, `usuario`, `sessao`, `produto`, `estoque_loja`, `pedido`, `item_pedido`, `item_pedido_extras`, `auditoria`, `fechamento_caixa`, `insumo`, `estoque_insumo`, `ficha_produto`, `ficha_extra`, `consumo_pedido`, `flyway_schema_history`) aparecem em `loja_cafe` → `Schemas` → `public` depois que a API sobe.
 
 ### Testar no Insomnia
 *Application → Import* e escolha `specs/loja-cafe.postman_collection.json` (a coleção tem as chamadas da API e do Pagamentos).
@@ -47,12 +47,12 @@ scripts/criar-usuario.sh ze@loja.com Zé GERENTE 1
 ```
 O gerente cria atendentes e cozinha da própria loja pela API (`POST /usuarios`); o ADMIN cria lojas (`POST /lojas`) e define o estoque de cada uma. Veja `specs/api.md`.
 
-**Começar do zero:** com a API parada, apague as tabelas no DBeaver (ou `docker compose exec postgres psql -U loja -d loja_cafe -c "drop table item_pedido_extras, item_pedido, pedido, estoque_loja, auditoria, sessao, usuario, loja, produto, flyway_schema_history"`). As migrações recriam tudo na próxima partida.
-**Mudou o banco?** Crie um arquivo novo (`V5__descricao.sql`) em `pedidos-api/src/main/resources/db/migration`; nunca edite uma migração já aplicada.
+**Começar do zero:** com a API parada, apague as tabelas no DBeaver (ou `docker compose exec postgres psql -U loja -d loja_cafe -c "drop schema public cascade; create schema public"`, dentro de `infra/`). As migrações recriam tudo na próxima partida.
+**Mudou o banco?** Crie um arquivo novo com o próximo número livre (hoje `V9__descricao.sql`) em `pedidos-api/src/main/resources/db/migration`; nunca edite uma migração já aplicada.
 
 As credenciais vêm de `infra/.env` (ou de variáveis de ambiente com o mesmo nome, que têm prioridade). Outro banco: `DB_URL`, `DB_USER`, `DB_PASSWORD`. Outra origem de CORS: `lojacafe.cors.origem`.
 
-Testes (não precisam de Docker: usam H2 em memória): `./mvnw test`.
+Testes (113; não precisam de Docker: usam H2 em memória): `./mvnw test`. A API também responde `GET /saude` (banco e Kafka) sem login.
 
 ## front (React, porta 5173)
 ```bash
@@ -91,5 +91,18 @@ Outro grupo: `GRUPO=auditoria python analytics.py` (PowerShell: `$env:GRUPO="aud
 
 Replay do grupo analytics (com o Analytics parado), dentro de `infra/`:
 ```bash
-docker compose exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:19092 --group analytics --all-topics --reset-offsets --to-earliest --execute
+# O Kafka exige login: --command-config aponta para o arquivo de credenciais que o próprio contêiner mantém em /tmp/cliente.properties.
+docker compose exec kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:19092 --command-config /tmp/cliente.properties --group analytics --all-topics --reset-offsets --to-earliest --execute
 ```
+
+As mensagens ficam 7 dias no Kafka: o replay só reconstrói o que ainda está dentro dessa janela (veja `specs/eventos.md`).
+
+## Verificar que tudo está de acordo (antes de dar algo por pronto)
+```bash
+node scripts/conferir-specs.js     # o código e as specs/ dizem a mesma coisa
+bash scripts/e2e.sh                # fluxo completo, com infra, API e Pagamentos no ar (14 passos)
+bash scripts/testar-backup.sh      # backup e restauração num Postgres descartável (só precisa de Docker)
+```
+
+## Produção, backup e restauração
+Tudo está em [`deploy/README.md`](deploy/README.md): subir com Docker e HTTPS, a chave do backup, a restauração, o `deploy/status.sh` e os alertas.
