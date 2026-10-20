@@ -9,3 +9,7 @@ dados/
 .DS_Store
 .idea/vcs.xml
 deploy/.env
+deploy/atualizacoes.log
+deploy/ultima-construcao.log
+deploy/ultima-falha.log
+deploy/.atualizando.lock/
