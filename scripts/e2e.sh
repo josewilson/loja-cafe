@@ -13,7 +13,7 @@ if [ -f "$ENV_FILE" ]; then set -a; . "$ENV_FILE"; set +a; fi
 
 API=${1:-http://localhost:8081}
 # Opções extras do curl (ex.: CURL_OPTS=-k para aceitar o certificado de teste do Caddy em https://localhost/api).
-curl() { command curl $CURL_OPTS "$@"; }
+curl() { command curl ${CURL_OPTS:-} "$@"; }
 SUFIXO="$RANDOM$RANDOM"
 
 falhar() { echo "FALHOU: $*" >&2; exit 1; }
