@@ -1487,4 +1487,59 @@ class PedidosApiApplicationTests {
         String corpo = GET(null, "/saude").andReturn().getResponse().getContentAsString();
         org.junit.jupiter.api.Assertions.assertFalse(corpo.contains("jdbc") || corpo.contains("localhost") || corpo.contains("Exception"), corpo);
     }
+
+    // ---------- reenviar pedidos parados ao Pagamentos (depois de restaurar um backup) ----------
+
+    private java.util.Set<Long> idsReenviados() throws Exception {
+        var captor = org.mockito.ArgumentCaptor.forClass(Pedido.class);
+        org.mockito.Mockito.verify(eventos, org.mockito.Mockito.atLeast(0)).publicarCriado(captor.capture());
+        return captor.getAllValues().stream().map(Pedido::getId).collect(java.util.stream.Collectors.toSet());
+    }
+
+    @Test
+    void reenfileirarReenviaSoOsPedidosQueAindaAguardam() throws Exception {
+        String atendente = token(Papel.ATENDENTE, novaLoja());
+        long parado1 = lancar(atendente, 1, 1);
+        long parado2 = lancar(atendente, 1, 1);
+        long pago = lancarPago(atendente, 1, 1);
+        long recusado = lancar(atendente, 1, 1);
+        resultado(recusado, "RECUSADO");
+        org.mockito.Mockito.clearInvocations(eventos); // ignora os envios feitos ao lançar os pedidos
+
+        POST(admin(), "/pedidos/reenfileirar?minutos=0", "{}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.reenviados", greaterThanOrEqualTo(2))).andExpect(jsonPath("$.minutos").value(0));
+        var reenviados = idsReenviados();
+        org.junit.jupiter.api.Assertions.assertTrue(reenviados.contains(parado1) && reenviados.contains(parado2), "reenviados: " + reenviados);
+        org.junit.jupiter.api.Assertions.assertFalse(reenviados.contains(pago), "pedido já pago não volta para o Pagamentos");
+        org.junit.jupiter.api.Assertions.assertFalse(reenviados.contains(recusado), "pedido já recusado não volta para o Pagamentos");
+    }
+
+    @Test
+    void reenfileirarRespeitaOTempoMinimoDeEspera() throws Exception {
+        String atendente = token(Papel.ATENDENTE, novaLoja());
+        long recem = lancar(atendente, 1, 1); // acabou de nascer: ainda não está "parado"
+        org.mockito.Mockito.clearInvocations(eventos);
+        POST(admin(), "/pedidos/reenfileirar", "{}").andExpect(status().isOk()).andExpect(jsonPath("$.minutos").value(10)); // padrão: 10 min
+        org.junit.jupiter.api.Assertions.assertFalse(idsReenviados().contains(recem));
+    }
+
+    @Test
+    void reenfileirarSoOAdminFazEValidaOLimite() throws Exception {
+        long loja = novaLoja();
+        for (String t : new String[]{token(Papel.GERENTE, loja), token(Papel.ATENDENTE, loja), token(Papel.COZINHA, loja)}) {
+            POST(t, "/pedidos/reenfileirar?minutos=0", "{}").andExpect(status().isForbidden());
+        }
+        POST(null, "/pedidos/reenfileirar?minutos=0", "{}").andExpect(status().isUnauthorized());
+        POST(admin(), "/pedidos/reenfileirar?minutos=-1", "{}").andExpect(status().isBadRequest());
+        POST(admin(), "/pedidos/reenfileirar?minutos=10081", "{}").andExpect(status().isBadRequest());
+        POST(admin(), "/pedidos/reenfileirar?minutos=abc", "{}").andExpect(status().isBadRequest());
+        POST(admin(), "/pedidos/reenfileirar?minutos=10080", "{}").andExpect(status().isOk());
+    }
+
+    @Test
+    void reenfileirarVaiParaAAuditoria() throws Exception {
+        POST(admin(), "/pedidos/reenfileirar?minutos=0", "{}").andExpect(status().isOk());
+        GET(admin(), "/auditoria?limite=50").andExpect(jsonPath("$[?(@.acao=='PEDIDOS_REENFILEIRADOS')].detalhe",
+                hasItem(containsString("aguardando há mais de 0 min"))));
+    }
 }

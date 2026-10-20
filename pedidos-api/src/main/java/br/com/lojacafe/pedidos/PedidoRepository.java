@@ -37,6 +37,9 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 
     long countByLojaIdAndStatus(Long lojaId, StatusPedido status);
 
+    /** Pedidos nesse status criados antes de um instante, do mais antigo ao mais novo (reenvio ao Pagamentos). */
+    List<Pedido> findByStatusAndCriadoEmBeforeOrderByIdAsc(StatusPedido status, Instant antesDe, Pageable limite);
+
     // ---------- relatório de vendas de um dia ([de, ate) pela hora de criação) ----------
 
     @Query("select p.formaPagamento, count(p), sum(p.valor) from Pedido p where p.lojaId = :lojaId and p.criadoEm >= :de and p.criadoEm < :ate "

@@ -96,7 +96,7 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
 `PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`, `INSUMO_CRIADO`, `INSUMO_ALTERADO`, `FICHA_ALTERADA`, `INSUMO_AJUSTADO`
-(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja).
+(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede).
 
 ## Cardápio e pedidos (exigem token)
 
@@ -203,6 +203,13 @@ Insumos ativos da loja com `quantidade ≤ minimo` (o `ADMIN` informa `?lojaId=`
 **PUT /fichas/produtos/{id}** · **PUT /fichas/extras/{codigo}**  (`ADMIN`) — **substitui a ficha inteira**. Corpo igual ao da resposta, só com
 `insumoId` e `quantidade` (maior que 0, até 100000, 3 casas). Até 30 itens, sem insumo repetido, todos existentes (senão `400`).
 Lista vazia = não gasta nada. Produto ou extra inexistente: `404`. `200` com a ficha.
+
+### POST /pedidos/reenfileirar?minutos=N  (`ADMIN`)
+Reenvia ao Pagamentos os pedidos que **ainda aguardam pagamento** há mais de `N` minutos (padrão 10; de 0 a 10080; `0` = todos os que aguardam).
+Serve depois de restaurar um backup (o Kafka não entra no backup) ou de uma falha longa do Pagamentos. Reenvia o evento `pedidos-criados`
+de cada um (até 500 por chamada, do mais antigo ao mais novo; chame de novo se `reenviados` for 500). É seguro repetir: o primeiro resultado
+que chegar vale e os seguintes são ignorados. `N` fora da faixa: `400`. Resposta `200`: `{ "reenviados": 3, "minutos": 10 }`.
+Grava `PEDIDOS_REENFILEIRADOS` na auditoria (da rede, sem loja).
 
 ## Cozinha, retirada e cancelamento
 `preparo` é o andamento na loja e é **independente** do `status` (que é só o pagamento). Todo pedido nasce `NA_FILA`.
