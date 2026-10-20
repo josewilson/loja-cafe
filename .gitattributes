@@ -1,0 +1,3 @@
+# Scripts de shell sempre com fim de linha LF (CRLF quebra o bash dentro do Docker e no Linux).
+*.sh text eol=lf
+deploy/backup/* text eol=lf

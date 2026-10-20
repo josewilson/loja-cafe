@@ -106,6 +106,34 @@ services:
     depends_on:
       kafka: { condition: service_healthy }
 
+  # Backup diário criptografado do Postgres, com cópia fora do servidor (veja deploy/README.md, "Backup e restauração").
+  # O servidor só tem a chave PÚBLICA: sem BACKUP_AGE_RECIPIENT o compose nem sobe (deploy sem backup não existe).
+  backup:
+    <<: *logs
+    build: ./backup
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-loja}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: loja_cafe
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?defina BACKUP_AGE_RECIPIENT em deploy/.env (gere o par com deploy/gerar-chave-backup.sh)}
+      BACKUP_HORA: ${BACKUP_HORA:-03:30}
+      BACKUP_AO_INICIAR: ${BACKUP_AO_INICIAR:-0}
+      RCLONE_DEST: ${RCLONE_DEST:-}
+      HEALTHCHECK_URL: ${HEALTHCHECK_URL:-}
+      # Destino de fora (nome "offsite"): só estas variáveis chegam ao contêiner, não o deploy/.env inteiro.
+      RCLONE_CONFIG_OFFSITE_TYPE: ${RCLONE_CONFIG_OFFSITE_TYPE:-}
+      RCLONE_CONFIG_OFFSITE_PROVIDER: ${RCLONE_CONFIG_OFFSITE_PROVIDER:-}
+      RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID: ${RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID:-}
+      RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY: ${RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY:-}
+      RCLONE_CONFIG_OFFSITE_ENDPOINT: ${RCLONE_CONFIG_OFFSITE_ENDPOINT:-}
+      RCLONE_CONFIG_OFFSITE_REGION: ${RCLONE_CONFIG_OFFSITE_REGION:-}
+    volumes: ["backups:/backups"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
   web:
     <<: *logs
     build:
@@ -131,3 +159,4 @@ volumes:
   dados-postgres:
   caddy-dados:
   caddy-config:
+  backups:
