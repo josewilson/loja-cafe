@@ -106,7 +106,7 @@ voltar_codigo() { # devolve o código ao estado de antes
 }
 saudavel() { # a API (pelo Caddy), a tela e o Pagamentos respondem?
   curl -fsk -m 5 "$URL/api/saude" 2>/dev/null | grep -q '"status":"ok"' || return 1
-  curl -fsk -m 5 -o /dev/null "$URL/" || return 1
+  curl -fsk -m 5 "$URL/" > /dev/null || return 1   # redirecionamento do bash (o "curl -o /dev/null" falha no Git Bash do Windows)
   local id; id=$("${COMPOSE[@]}" ps -q pagamentos 2>/dev/null | head -1)
   [ -n "$id" ] && [ "$(docker inspect --format '{{.State.Health.Status}}' "$id" 2>/dev/null)" = "healthy" ]
 }
