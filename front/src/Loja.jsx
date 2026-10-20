@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { cancelarPedido, criarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
+import { buscarRecibo, cancelarPedido, criarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
 import Topo from './Topo'
 
 const reais = (n) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -46,6 +46,7 @@ export default function Loja({ sessao, aoSair, topo }) {
   const [recebido, setRecebido] = useState(null)
   const [pedidos, setPedidos] = useState([])
   const [offline, setOffline] = useState(false)
+  const [recibo, setRecibo] = useState(null) // recibo aberto para impressão
 
   const aguardando = pedidos.filter((p) => p.status === 'AGUARDANDO_PAGAMENTO').length
 
@@ -129,6 +130,26 @@ export default function Loja({ sessao, aoSair, topo }) {
   }
 
   // Só o gerente cancela, e só até ficar pronto (o servidor confere). O estoque volta.
+  // Busca o recibo, mostra na área de impressão e abre o diálogo do navegador (80 mm). Sem valor fiscal.
+  async function imprimirRecibo(p) {
+    setErro(null)
+    try {
+      setRecibo(await buscarRecibo(p.id))
+    } catch (falha) {
+      if (falha.status === 401) return aoSair()
+      setErro(falha)
+    }
+  }
+
+  useEffect(() => {
+    if (!recibo) return
+    document.body.classList.add('imprimindo-recibo')
+    const limpar = () => { document.body.classList.remove('imprimindo-recibo'); setRecibo(null) }
+    window.addEventListener('afterprint', limpar, { once: true })
+    window.print()
+    return () => window.removeEventListener('afterprint', limpar)
+  }, [recibo])
+
   async function cancelar(p) {
     if (!window.confirm(`Cancelar o pedido #${p.id} de ${p.cliente}? O estoque volta.`)) return
     setErro(null)
@@ -467,6 +488,11 @@ export default function Loja({ sessao, aoSair, topo }) {
                   </span>
                   {p.processadoPor && <span className="caixa">{p.processadoPor}</span>}
                 </div>
+                {p.status === 'PAGO' && p.preparo !== 'CANCELADO' && (
+                  <div className="acoes">
+                    <button type="button" className="link" onClick={() => imprimirRecibo(p)}>Imprimir recibo</button>
+                  </div>
+                )}
                 {papel === 'GERENTE' && p.status !== 'RECUSADO' && (p.preparo === 'NA_FILA' || p.preparo === 'PREPARANDO') && (
                   <div className="acoes">
                     <button type="button" className="botao perigo" onClick={() => cancelar(p)}>Cancelar pedido</button>
@@ -477,6 +503,28 @@ export default function Loja({ sessao, aoSair, topo }) {
           </ul>
         </section>
       </main>
+      {recibo && (
+        <div className="recibo-impressao" aria-hidden="true">
+          <strong>{recibo.loja.razaoSocial ?? recibo.loja.nome}</strong>
+          {recibo.loja.cnpj && <div>CNPJ {recibo.loja.cnpj}{recibo.loja.inscricaoEstadual ? ` · IE ${recibo.loja.inscricaoEstadual}` : ''}</div>}
+          {recibo.loja.endereco && <div>{recibo.loja.endereco}</div>}
+          <hr />
+          <div>Pedido #{recibo.pedidoId} · {new Date(recibo.criadoEm).toLocaleString('pt-BR')}</div>
+          <div>Cliente: {recibo.cliente} · Atendente: {recibo.atendente}</div>
+          <hr />
+          {recibo.itens.map((i, n) => (
+            <div key={n} className="recibo-linha">
+              <span>{i.quantidade}× {i.item} ({i.tamanho}){i.extras.length ? ` + ${i.extras.join(', ')}` : ''}</span>
+              <span>{Number(i.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+            </div>
+          ))}
+          <hr />
+          <div className="recibo-linha"><strong>TOTAL</strong><strong>{Number(recibo.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
+          <div>Pagamento: {recibo.formaPagamento}{recibo.formaPagamento === 'CREDITO' && recibo.parcelas > 1 ? ` em ${recibo.parcelas}x` : ''}</div>
+          <hr />
+          <div className="recibo-aviso">{recibo.aviso.toUpperCase()}</div>
+        </div>
+      )}
     </>
   )
 }

@@ -1,6 +1,8 @@
 package br.com.lojacafe.pedidos;
 
 import jakarta.validation.Valid;
+import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
@@ -19,9 +21,11 @@ public class PedidoController {
     private final PedidoEventos eventos;
     private final Auditor auditor;
     private final ConsumoInsumos consumo;
+    private final LojaRepository lojas;
 
     public PedidoController(PedidoRepository repository, ProdutoRepository produtos, EstoqueLojaRepository estoque,
-                            PedidoEventos eventos, Auditor auditor, ConsumoInsumos consumo) {
+                            PedidoEventos eventos, Auditor auditor, ConsumoInsumos consumo, LojaRepository lojas) {
+        this.lojas = lojas;
         this.consumo = consumo;
         this.repository = repository;
         this.produtos = produtos;
@@ -73,6 +77,26 @@ public class PedidoController {
         var pagina = PageRequest.of(0, Math.max(1, Math.min(limite, 200)));
         Long loja = Autenticacao.escopo(usuario, lojaId);
         return loja == null ? repository.findAllByOrderByIdDesc(pagina) : repository.findByLojaIdOrderByIdDesc(loja, pagina);
+    }
+
+    public record LojaRecibo(String nome, String razaoSocial, String cnpj, String inscricaoEstadual, String endereco) {}
+    public record Recibo(Long pedidoId, LojaRecibo loja, String cliente, String atendente, List<ItemPedido> itens, BigDecimal valor,
+                         FormaPagamento formaPagamento, Integer parcelas, Instant criadoEm, String aviso) {}
+
+    /** Recibo para imprimir (sem valor fiscal). Só de pedido PAGO e não cancelado, e só da loja de quem pede (o ADMIN vê qualquer uma). */
+    @GetMapping("/{id}/recibo")
+    @Transactional
+    public Recibo recibo(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario, @PathVariable Long id) {
+        Pedido p = repository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não existe"));
+        Autenticacao.escopo(usuario, p.getLojaId());
+        if (p.getStatus() != StatusPedido.PAGO || p.getPreparo() == Preparo.CANCELADO) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Só há recibo de pedido pago e não cancelado");
+        }
+        Loja l = lojas.findById(p.getLojaId()).orElseThrow();
+        auditor.registrar(usuario, p.getLojaId(), "RECIBO_EMITIDO", "Pedido", id, null);
+        return new Recibo(p.getId(), new LojaRecibo(l.getNome(), l.getRazaoSocial(), l.getCnpj(), l.getInscricaoEstadual(), l.getEndereco()),
+                p.getCliente(), p.getAtendente(), p.getItens(), p.getValor(), p.getFormaPagamento(), p.getParcelas(), p.getCriadoEm(),
+                "Sem valor fiscal");
     }
 
     private static ResponseStatusException erro(String mensagem) {

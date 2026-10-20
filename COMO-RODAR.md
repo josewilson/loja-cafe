@@ -52,7 +52,7 @@ O gerente cria atendentes e cozinha da própria loja pela API (`POST /usuarios`)
 
 As credenciais vêm de `infra/.env` (ou de variáveis de ambiente com o mesmo nome, que têm prioridade). Outro banco: `DB_URL`, `DB_USER`, `DB_PASSWORD`. Outra origem de CORS: `lojacafe.cors.origem`.
 
-Testes (114; não precisam de Docker: usam H2 em memória): `./mvnw test`. A API também responde `GET /saude` (banco e Kafka) sem login.
+Testes (118; não precisam de Docker: usam H2 em memória): `./mvnw test`. A API também responde `GET /saude` (banco e Kafka) sem login.
 
 ## front (React, porta 5173)
 ```bash

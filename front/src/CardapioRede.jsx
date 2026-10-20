@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { alterarProduto, criarProduto, listarCardapio } from './api'
+import { alterarLoja, alterarProduto, criarProduto, listarCardapio, listarLojas } from './api'
 import Topo from './Topo'
 import Erro from './Erro'
 import useDados from './useDados'
 
 const reais = (n) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const VAZIO = { nome: '', descricao: '', emoji: '', preco: '' }
+const VAZIO = { nome: '', descricao: '', emoji: '', preco: '', ncm: '', cfop: '' }
 
 // Formulário de um produto (novo ou em edição). `ativo` só aparece ao editar.
 function FormProduto({ inicial, comAtivo, ocupado, aoSalvar, aoCancelar, rotulo }) {
@@ -16,7 +16,7 @@ function FormProduto({ inicial, comAtivo, ocupado, aoSalvar, aoCancelar, rotulo 
       className="form-produto"
       onSubmit={(e) => {
         e.preventDefault()
-        aoSalvar({ nome: v.nome.trim(), descricao: v.descricao.trim() || undefined, emoji: v.emoji.trim(), preco: Number(v.preco), ativo: comAtivo ? v.ativo : undefined })
+        aoSalvar({ nome: v.nome.trim(), descricao: v.descricao.trim() || undefined, emoji: v.emoji.trim(), preco: Number(v.preco), ativo: comAtivo ? v.ativo : undefined, ncm: v.ncm?.trim() || undefined, cfop: v.cfop?.trim() || undefined })
       }}
     >
       <label className="campo"><span>Nome</span><input required maxLength={60} value={v.nome} onChange={mudar('nome')} /></label>
@@ -24,6 +24,10 @@ function FormProduto({ inicial, comAtivo, ocupado, aoSalvar, aoCancelar, rotulo 
       <label className="campo"><span>Emoji</span><input required maxLength={16} value={v.emoji} onChange={mudar('emoji')} placeholder="☕" /></label>
       <label className="campo"><span>Preço (R$)</span>
         <input type="number" required min="0.01" max="10000" step="0.01" value={v.preco} onChange={mudar('preco')} /></label>
+      <label className="campo"><span>NCM <small>(contador, 8 dígitos)</small></span>
+        <input inputMode="numeric" pattern="\d{8}" maxLength={8} value={v.ncm ?? ''} onChange={mudar('ncm')} /></label>
+      <label className="campo"><span>CFOP <small>(4 dígitos)</small></span>
+        <input inputMode="numeric" pattern="\d{4}" maxLength={4} value={v.cfop ?? ''} onChange={mudar('cfop')} /></label>
       {comAtivo && (
         <label className="marcar"><input type="checkbox" checked={v.ativo} onChange={mudar('ativo')} /> No cardápio (ativo)</label>
       )}
@@ -35,12 +39,44 @@ function FormProduto({ inicial, comAtivo, ocupado, aoSalvar, aoCancelar, rotulo 
   )
 }
 
+// Dados fiscais de uma loja (aparecem no recibo). Campo vazio = não informado. Quem define é o contador.
+function FormLoja({ loja, aoSalvo, aoSair }) {
+  const [v, setV] = useState({ razaoSocial: loja.razaoSocial ?? '', cnpj: loja.cnpj ?? '', inscricaoEstadual: loja.inscricaoEstadual ?? '', endereco: loja.endereco ?? '' })
+  const [erro, setErro] = useState(null)
+  const [salvo, setSalvo] = useState(false)
+  const mudar = (campo) => (e) => { setSalvo(false); setV({ ...v, [campo]: e.target.value }) }
+  async function salvar(e) {
+    e.preventDefault()
+    try {
+      await alterarLoja(loja.id, { razaoSocial: v.razaoSocial.trim() || undefined, cnpj: v.cnpj.replace(/\D/g, '') || undefined, inscricaoEstadual: v.inscricaoEstadual.trim() || undefined, endereco: v.endereco.trim() || undefined })
+      setErro(null)
+      setSalvo(true)
+      aoSalvo()
+    } catch (falha) {
+      if (falha.status === 401) return aoSair()
+      setErro(falha)
+    }
+  }
+  return (
+    <form className="form-produto" onSubmit={salvar}>
+      <strong>{loja.nome}</strong>
+      <label className="campo"><span>Razão social</span><input maxLength={120} value={v.razaoSocial} onChange={mudar('razaoSocial')} /></label>
+      <label className="campo"><span>CNPJ</span><input inputMode="numeric" maxLength={18} value={v.cnpj} onChange={mudar('cnpj')} placeholder="só números" /></label>
+      <label className="campo"><span>Inscrição estadual</span><input maxLength={20} value={v.inscricaoEstadual} onChange={mudar('inscricaoEstadual')} /></label>
+      <label className="campo largo"><span>Endereço</span><input maxLength={200} value={v.endereco} onChange={mudar('endereco')} /></label>
+      <Erro erro={erro} />
+      <div className="acoes"><button type="submit" className="botao">Salvar</button>{salvo && <small>Salvo ✓</small>}</div>
+    </form>
+  )
+}
+
 // Cardápio da rede: só o ADMIN edita. O preço novo vale só para pedidos novos.
 export default function CardapioRede({ aoSair, topo }) {
   const { dados, erro, recarregar, setErro } = useDados(listarCardapio, aoSair)
   const [editando, setEditando] = useState(null) // id do produto aberto para edição
   const [ocupado, setOcupado] = useState(false)
   const [novoKey, setNovoKey] = useState(0) // muda para limpar o formulário "Novo produto"
+  const lojas = useDados(listarLojas, aoSair)
 
   async function agir(acao) {
     setOcupado(true)
@@ -101,6 +137,13 @@ export default function CardapioRede({ aoSair, topo }) {
               </li>
             ))}
           </ul>
+        </section>
+        <section className="cartao">
+          <h2>Dados fiscais das lojas</h2>
+          <p className="nota">Aparecem no recibo (sem valor fiscal). CNPJ, NCM e CFOP: peça ao seu contador.</p>
+          {(lojas.dados ?? []).map((l) => (
+            <FormLoja key={l.id} loja={l} aoSalvo={lojas.recarregar} aoSair={aoSair} />
+          ))}
         </section>
       </main>
     </>

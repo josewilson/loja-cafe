@@ -17,6 +17,9 @@ public class Produto {
     private BigDecimal preco;
     // Desativado: some do balcão e não aceita pedido novo, mas fica nos pedidos e relatórios antigos.
     private boolean ativo = true;
+    // Dados fiscais (Fase 6), opcionais: quem define é o contador.
+    private String ncm;
+    private String cfop;
 
     protected Produto() {
         // exigido pelo JPA
@@ -34,11 +37,18 @@ public class Produto {
         this.preco = preco;
     }
 
+    public void setFiscal(String ncm, String cfop) {
+        this.ncm = ncm == null || ncm.isBlank() ? null : ncm.trim();
+        this.cfop = cfop == null || cfop.isBlank() ? null : cfop.trim();
+    }
+
     public Long getId() { return id; }
     public String getNome() { return nome; }
     public String getDescricao() { return descricao; }
     public String getEmoji() { return emoji; }
     public BigDecimal getPreco() { return preco; }
     public boolean isAtivo() { return ativo; }
+    public String getNcm() { return ncm; }
+    public String getCfop() { return cfop; }
     public void setAtivo(boolean ativo) { this.ativo = ativo; }
 }

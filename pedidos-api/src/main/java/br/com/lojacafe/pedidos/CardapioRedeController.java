@@ -19,10 +19,13 @@ public class CardapioRedeController {
                                @Size(max = 140) String descricao,
                                @NotBlank @Size(max = 16) String emoji,
                                @NotNull @DecimalMin("0.01") @DecimalMax("10000.00") @Digits(integer = 5, fraction = 2) BigDecimal preco,
-                               Boolean ativo) {}
-    public record ProdutoVista(Long id, String nome, String descricao, String emoji, BigDecimal preco, boolean ativo) {
+                               Boolean ativo,
+                               @Pattern(regexp = "\\d{8}", message = "NCM tem 8 dígitos") String ncm,
+                               @Pattern(regexp = "\\d{4}", message = "CFOP tem 4 dígitos") String cfop) {}
+    public record ProdutoVista(Long id, String nome, String descricao, String emoji, BigDecimal preco, boolean ativo,
+                               String ncm, String cfop) {
         static ProdutoVista de(Produto p) {
-            return new ProdutoVista(p.getId(), p.getNome(), p.getDescricao(), p.getEmoji(), p.getPreco(), p.isAtivo());
+            return new ProdutoVista(p.getId(), p.getNome(), p.getDescricao(), p.getEmoji(), p.getPreco(), p.isAtivo(), p.getNcm(), p.getCfop());
         }
     }
 
@@ -53,7 +56,9 @@ public class CardapioRedeController {
         if (produtos.findByNomeIgnoreCase(dados.nome().trim()).isPresent()) {
             throw nomeRepetido();
         }
-        Produto produto = produtos.save(new Produto(dados.nome(), dados.descricao(), dados.emoji(), dados.preco()));
+        Produto novo = new Produto(dados.nome(), dados.descricao(), dados.emoji(), dados.preco());
+        novo.setFiscal(dados.ncm(), dados.cfop());
+        Produto produto = produtos.save(novo);
         // Produto novo nasce sem estoque em todas as lojas; cada gerente ajusta o da sua.
         for (Loja loja : lojas.findAll()) {
             estoque.save(new EstoqueLoja(loja.getId(), produto.getId(), 0));
@@ -88,6 +93,7 @@ public class CardapioRedeController {
 
         produto.atualizar(dados.nome(), dados.descricao(), dados.emoji(), dados.preco());
         produto.setAtivo(ativo);
+        produto.setFiscal(dados.ncm(), dados.cfop());
         produtos.save(produto);
         if (!mudancas.isEmpty()) {
             auditor.registrar(quem, null, "PRODUTO_ALTERADO", "Produto", id, String.join("; ", mudancas));

@@ -13,10 +13,14 @@ import org.springframework.web.server.ResponseStatusException;
 @RestController
 public class LojaController {
 
-    public record NovaLoja(@NotBlank @Size(max = 120) String nome, @Min(0) @Max(10000) Integer estoqueInicial) {}
-    public record LojaVista(Long id, String nome, boolean ativa) {
+    public record NovaLoja(@NotBlank @Size(max = 120) String nome, @Min(0) @Max(10000) Integer estoqueInicial,
+                           @Size(max = 120) String razaoSocial, @Pattern(regexp = "\\d{14}", message = "CNPJ tem 14 dígitos") String cnpj,
+                           @Size(max = 20) String inscricaoEstadual, @Size(max = 200) String endereco) {}
+    public record DadosFiscais(@Size(max = 120) String razaoSocial, @Pattern(regexp = "\\d{14}", message = "CNPJ tem 14 dígitos") String cnpj,
+                               @Size(max = 20) String inscricaoEstadual, @Size(max = 200) String endereco) {}
+    public record LojaVista(Long id, String nome, boolean ativa, String razaoSocial, String cnpj, String inscricaoEstadual, String endereco) {
         static LojaVista de(Loja l) {
-            return new LojaVista(l.getId(), l.getNome(), l.isAtiva());
+            return new LojaVista(l.getId(), l.getNome(), l.isAtiva(), l.getRazaoSocial(), l.getCnpj(), l.getInscricaoEstadual(), l.getEndereco());
         }
     }
     public record NovaQuantidade(@NotNull @Min(0) @Max(100000) Integer quantidade) {}
@@ -53,7 +57,10 @@ public class LojaController {
         if (lojas.findByNome(nova.nome().trim()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Já existe uma loja com este nome");
         }
-        Loja loja = lojas.save(new Loja(nova.nome()));
+        conferirCnpj(nova.cnpj());
+        Loja novaLoja = new Loja(nova.nome());
+        novaLoja.atualizarFiscal(nova.razaoSocial(), nova.cnpj(), nova.inscricaoEstadual(), nova.endereco());
+        Loja loja = lojas.save(novaLoja);
         int inicial = nova.estoqueInicial() == null ? 0 : nova.estoqueInicial();
         for (Produto p : produtos.findAll()) {
             estoque.save(new EstoqueLoja(loja.getId(), p.getId(), inicial));
@@ -64,6 +71,26 @@ public class LojaController {
         }
         auditor.registrar(quem, loja.getId(), "LOJA_CRIADA", "Loja", loja.getId(), "nome " + loja.getNome() + ", estoque inicial " + inicial);
         return LojaVista.de(loja);
+    }
+
+    /** Só os dados fiscais mudam aqui; o nome da loja não. Campo ausente = apagado. */
+    @PutMapping("/lojas/{lojaId}")
+    @Papeis(Papel.ADMIN)
+    @Transactional
+    public LojaVista alterarFiscal(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @PathVariable Long lojaId,
+                                   @Valid @RequestBody DadosFiscais dados) {
+        Loja loja = lojas.findById(lojaId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Loja não existe"));
+        conferirCnpj(dados.cnpj());
+        loja.atualizarFiscal(dados.razaoSocial(), dados.cnpj(), dados.inscricaoEstadual(), dados.endereco());
+        lojas.save(loja);
+        auditor.registrar(quem, lojaId, "LOJA_ALTERADA", "Loja", lojaId, "dados fiscais, cnpj " + loja.getCnpj());
+        return LojaVista.de(loja);
+    }
+
+    private static void conferirCnpj(String cnpj) {
+        if (cnpj != null && !Loja.cnpjValido(cnpj)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CNPJ inválido (confira os dígitos verificadores)");
+        }
     }
 
     @PutMapping("/lojas/{lojaId}/estoque/{produtoId}")

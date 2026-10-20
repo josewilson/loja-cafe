@@ -328,3 +328,14 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
 .pix { display: flex; gap: 12px; align-items: center; margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--fundo-2); }
 .pix img { background: #fff; border-radius: 6px; flex: none; }
 .pix input { width: 100%; margin: 4px 0 6px; font-size: .75rem; }
+
+/* Recibo (Fase 6): só existe na impressão, em bobina de 80 mm */
+.recibo-impressao { display: none; }
+@media print {
+  body.imprimindo-recibo * { visibility: hidden; }
+  body.imprimindo-recibo .recibo-impressao, body.imprimindo-recibo .recibo-impressao * { visibility: visible; }
+  body.imprimindo-recibo .recibo-impressao { display: block; position: absolute; left: 0; top: 0; width: 72mm; color: #000; background: #fff; font: 12px/1.4 monospace; }
+  .recibo-linha { display: flex; justify-content: space-between; gap: 8px; }
+  .recibo-aviso { text-align: center; font-weight: bold; }
+  @page { size: 80mm auto; margin: 4mm; }
+}

@@ -70,9 +70,14 @@ Exige token. Encerra a sessão. `204`.
 
 ## Lojas, usuários e estoque
 
-### GET /lojas · POST /lojas  (`ADMIN`)
+### GET /lojas · POST /lojas · PUT /lojas/{lojaId}  (`ADMIN`)
 `POST` corpo: `{ "nome": "Centro", "estoqueInicial": 20 }` (`nome` até 120, único; `estoqueInicial` opcional, de 0 a 10000, padrão 0,
-vale para cada produto). `201` com `{ "id": 2, "nome": "Centro", "ativa": true }`. `GET` lista todas.
+vale para cada produto). `201` com a loja. `GET` lista todas. Cada loja tem, além de `id`, `nome` e `ativa`, os **dados fiscais** (Fase 6),
+todos opcionais e `null` até alguém informar: `razaoSocial` (até 120), `cnpj` (14 dígitos, só números, com os dígitos verificadores certos),
+`inscricaoEstadual` (até 20) e `endereco` (até 200). Eles podem ir no `POST` e aparecem no recibo.
+
+`PUT /lojas/{lojaId}` troca os dados fiscais (o nome não muda): corpo `{ "razaoSocial": "...", "cnpj": "11222333000181", "inscricaoEstadual": "...", "endereco": "..." }`.
+**Campo ausente = apagado.** CNPJ com formato errado ou dígito verificador errado: `400`. Loja inexistente: `404`. Grava `LOJA_ALTERADA` na auditoria.
 
 ### GET /usuarios · POST /usuarios  (`ADMIN`, `GERENTE`)
 `POST` corpo: `{ "nome": "Bia", "email": "bia@exemplo.com", "senha": "segredo123", "papel": "ATENDENTE", "lojaId": 1 }`.
@@ -96,7 +101,7 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
 `PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`, `INSUMO_CRIADO`, `INSUMO_ALTERADO`, `FICHA_ALTERADA`, `INSUMO_AJUSTADO`
-(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede).
+(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6) e `RECIBO_EMITIDO` (Fase 6).
 
 ## Cardápio e pedidos (exigem token)
 
@@ -122,6 +127,17 @@ Corpo:
 - Resposta `201 Created` com o pedido (formato abaixo). Inválido: `400`, com `message` e, em erro de validação,
   `errors` listando `field` e `defaultMessage` de cada campo que falhou.
 
+### GET /pedidos/{id}/recibo  (todos os papéis)
+Recibo para imprimir, **sem valor fiscal** (não é nota fiscal). Só de pedido `PAGO` e não `CANCELADO` (senão `409`). Funcionário só vê pedido da própria loja (`403`);
+o `ADMIN` vê qualquer um. Pedido inexistente: `404`. Cada chamada grava `RECIBO_EMITIDO` na auditoria da loja. `200`:
+```json
+{ "pedidoId": 12, "loja": { "nome": "Matriz", "razaoSocial": "Café Central LTDA", "cnpj": "11222333000181", "inscricaoEstadual": null, "endereco": "Rua A, 10" },
+  "cliente": "Ana", "atendente": "Bia", "itens": [ { "produtoId": 2, "item": "Cappuccino", "quantidade": 2, "tamanho": "GRANDE",
+  "extras": ["CHANTILLY"], "precoUnitario": 17.50, "valor": 35.00 } ], "valor": 35.00, "formaPagamento": "CREDITO", "parcelas": 2,
+  "criadoEm": "2026-10-17T16:05:00Z", "aviso": "Sem valor fiscal" }
+```
+Os campos de `loja` são `null` quando os dados fiscais ainda não foram informados.
+
 ### GET /pedidos?limite=N  (todos os papéis)
 Pedidos **da loja do usuário**, **mais novo primeiro** (padrão 100, de 1 a 200). O `ADMIN` vê todas as lojas (`?lojaId=` filtra). Resposta `200`:
 ```json
@@ -143,8 +159,10 @@ Quem edita o cardápio é só o `ADMIN`, porque ele é da rede: o preço muda em
 ### GET /cardapio
 Todos os produtos, **inclusive os desativados**, na ordem de `id`. Sem estoque (o estoque é de cada loja). Resposta `200`:
 ```json
-[ { "id": 1, "nome": "Café coado", "descricao": "Filtrado na hora, grão da casa", "emoji": "☕", "preco": 8.50, "ativo": true } ]
+[ { "id": 1, "nome": "Café coado", "descricao": "Filtrado na hora, grão da casa", "emoji": "☕", "preco": 8.50, "ativo": true,
+    "ncm": null, "cfop": null } ]
 ```
+`ncm` (8 dígitos) e `cfop` (4 dígitos) são dados fiscais **opcionais** (Fase 6): quem define é o contador, o sistema só guarda. `null` até informar.
 
 ### POST /cardapio
 Corpo: `{ "nome": "Pão na chapa", "descricao": "Com manteiga", "emoji": "🥖", "preco": 7.00 }`.
@@ -153,7 +171,7 @@ Corpo: `{ "nome": "Pão na chapa", "descricao": "Com manteiga", "emoji": "🥖",
 - `201` com o produto (`ativo: true`). Nasce com **estoque 0 em todas as lojas**: cada gerente ajusta o da sua (`PUT /lojas/{id}/estoque/{produtoId}`).
 
 ### PUT /cardapio/{id}
-Mesmo corpo do `POST` mais `"ativo": true|false`. `200` com o produto. Inexistente: `404`; nome de outro produto: `409`.
+Mesmo corpo do `POST` mais `"ativo": true|false`. `ncm` e `cfop` (opcionais, também aceitos no `POST`) com formato errado: `400`; ausentes = apagados. `200` com o produto. Inexistente: `404`; nome de outro produto: `409`.
 - O **preço novo vale só para pedidos novos**: pedidos já feitos guardam o preço que usaram.
 - Produto **desativado** some do `GET /produtos` (balcão) e não aceita pedido novo, mas continua nos pedidos antigos e nos relatórios.
 

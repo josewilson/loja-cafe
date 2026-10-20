@@ -113,6 +113,8 @@ export const ajustarEstoque = (lojaId, produtoId, quantidade) =>
 export const listarInsumos = (lojaId) => pedir(`/insumos${lojaId ? `?lojaId=${lojaId}` : ''}`) // o ADMIN informa a loja
 export const alertasInsumos = () => pedir('/insumos/alertas')
 export const listarLojas = () => pedir('/lojas')
+export const alterarLoja = (id, dadosFiscais) => alterar(`/lojas/${id}`, dadosFiscais) // ADMIN: razaoSocial, cnpj, inscricaoEstadual, endereco
+export const buscarRecibo = (pedidoId) => pedir(`/pedidos/${pedidoId}/recibo`)
 export const criarInsumo = (insumo) => enviar('/insumos', insumo)
 export const alterarInsumo = (id, dados) => alterar(`/insumos/${id}`, dados)
 export const contarInsumo = (lojaId, insumoId, quantidade, minimo) =>
