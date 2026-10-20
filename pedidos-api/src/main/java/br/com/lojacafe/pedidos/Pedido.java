@@ -40,6 +40,15 @@ public class Pedido {
     private String motivo;
     private String processadoPor;
     private Instant criadoEm;
+    // Cobrança Pix (só PIX): chega no evento AGUARDANDO do Pagamentos e some da resposta quando o pedido é concluído.
+    @JsonIgnore
+    @Column(columnDefinition = "text")
+    private String pixCopiaCola;
+    @JsonIgnore
+    @Column(columnDefinition = "text")
+    private String pixQrCode;
+    @JsonIgnore
+    private Instant pixExpiraEm;
     // Fechamento de caixa que já contou este pedido (nulo = turno ainda aberto).
     @JsonIgnore
     private Long fechamentoId;
@@ -72,6 +81,24 @@ public class Pedido {
         this.motivo = motivo;
         this.processadoPor = instancia;
         return true;
+    }
+
+    /** Guarda a cobrança Pix criada pelo Pagamentos. Só vale enquanto o pedido ainda aguarda. */
+    public boolean registrarPix(String copiaECola, String qrCode, Instant expiraEm) {
+        if (status != StatusPedido.AGUARDANDO_PAGAMENTO) {
+            return false;
+        }
+        this.pixCopiaCola = copiaECola;
+        this.pixQrCode = qrCode;
+        this.pixExpiraEm = expiraEm;
+        return true;
+    }
+
+    public record Pix(String copiaECola, String qrCode, Instant expiraEm) {}
+
+    /** A cobrança a mostrar no balcão: só enquanto aguarda o pagamento (depois não há mais o que escanear). */
+    public Pix getPix() {
+        return status == StatusPedido.AGUARDANDO_PAGAMENTO && pixCopiaCola != null ? new Pix(pixCopiaCola, pixQrCode, pixExpiraEm) : null;
     }
 
     /**

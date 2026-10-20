@@ -164,8 +164,8 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 113 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
-cd pagamentos-py && python -m unittest -v       # 9 testes: regras, formas de pagamento e evento inválido
+cd pedidos-api   && ./mvnw test                 # 114 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
+cd pagamentos-py && python -m unittest -v       # 24 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
 cd front         && npm run lint                # oxlint
 node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
 bash scripts/e2e.sh                             # fluxo completo com o sistema no ar (14 passos)
@@ -221,7 +221,7 @@ Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plan
 | 4a. Empacotar | Dockerfiles, Caddy com HTTPS, `deploy/compose.prod.yml`, `GET /saude` (veja `deploy/README.md`) | feita |
 | 4b. Backup e vigília | Backup diário criptografado com cópia fora do servidor, restauração testada, `status.sh`, alertas (veja `deploy/README.md`) | feita |
 | 4c. Publicar | `deploy/atualizar.sh` (backup antes, volta sozinho se falhar) e manual de operação (`deploy/OPERACAO.md`) | feita |
-| 5. Pix real | Provedor de pagamento, webhook assinado | pendente |
+| 5. Pix real | Cobrança Pix com QR na tela, confirmação por webhook assinado + conferência periódica; Mercado Pago (ou `simulado` para testar) | feita, falta exercitar com a conta Mercado Pago |
 | 6. Nota fiscal | Emissor fiscal (confirmar com o contador) | pendente |
 
 ## Cuidados

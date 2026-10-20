@@ -103,6 +103,12 @@ services:
       KAFKA_USER: ${KAFKA_USER}
       KAFKA_PASSWORD: ${KAFKA_PASSWORD}
       INSTANCIA: caixa-1
+      # Pix (Fase 5). automatico = como antes (aprova na hora, sem cobrança). Veja deploy/.env.example.
+      PIX_PROVEDOR: ${PIX_PROVEDOR:-automatico}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      PIX_EXPIRA_MINUTOS: ${PIX_EXPIRA_MINUTOS:-10}
     depends_on:
       kafka: { condition: service_healthy }
 

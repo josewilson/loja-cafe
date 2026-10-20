@@ -323,3 +323,8 @@ input::placeholder, textarea::placeholder { color: var(--suave); opacity: .75; }
 .renomear input { max-width: 320px; }
 @media (max-width: 860px) { .linha-ficha { grid-template-columns: 1fr 1fr; } }
 .cartao .nova-conta + .equipe { margin-top: 18px; }
+
+/* Pix: QR e copia e cola do pedido que aguarda pagamento */
+.pix { display: flex; gap: 12px; align-items: center; margin-top: 8px; padding: 10px; border-radius: 10px; background: var(--fundo-2); }
+.pix img { background: #fff; border-radius: 6px; flex: none; }
+.pix input { width: 100%; margin: 4px 0 6px; font-size: .75rem; }

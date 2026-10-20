@@ -19,6 +19,11 @@
 		reverse_proxy pedidos-api:8081
 	}
 
+	# O aviso de pagamento do Mercado Pago vai direto ao Pagamentos (só este caminho; o resto dele continua interno).
+	handle /webhooks/mercadopago {
+		reverse_proxy pagamentos:5001
+	}
+
 	# Todo o resto é a tela. Rota desconhecida cai no index.html (a tela é uma página só).
 	handle {
 		header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'"

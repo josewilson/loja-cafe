@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import java.time.Instant;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -12,7 +13,10 @@ import tools.jackson.databind.json.JsonMapper;
 public class ResultadoPagamentoListener {
 
     record ResultadoPagamento(int versao, Long pedidoId, String status, String motivo,
-                              String instancia, String processadoEm) {}
+                              String instancia, String processadoEm, Pix pix) {}
+
+    /** Cobrança Pix (status AGUARDANDO): specs/eventos.md. */
+    record Pix(String copiaECola, String qrCode, Instant expiraEm) {}
 
     private static final Logger log = LoggerFactory.getLogger(ResultadoPagamentoListener.class);
 
@@ -34,6 +38,15 @@ public class ResultadoPagamentoListener {
         var resultado = json.readValue(mensagem, ResultadoPagamento.class);
         // Com trava na linha: um cancelamento ao mesmo tempo espera a nossa vez (e vice-versa).
         repository.findWithLockById(resultado.pedidoId()).ifPresentOrElse(pedido -> {
+            if ("AGUARDANDO".equals(resultado.status())) {
+                // Cobrança Pix criada: guarda o QR para a tela mostrar. O pedido continua aguardando.
+                var pix = resultado.pix();
+                if (pix != null && pedido.registrarPix(pix.copiaECola(), pix.qrCode(), pix.expiraEm())) {
+                    repository.save(pedido);
+                    log.info("Pedido {} aguardando o Pix", pedido.getId());
+                }
+                return;
+            }
             // concluir() ignora repetição: o mesmo resultado duas vezes não muda nada.
             if (pedido.concluir("APROVADO".equals(resultado.status()), resultado.motivo(), resultado.instancia())) {
                 repository.save(pedido);

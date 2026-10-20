@@ -75,7 +75,8 @@ try:
                 pedido.update(itens=itens, valor=float(evento["valor"]))
             else:
                 # Igual à pedidos-api: vale o primeiro resultado; repetição não muda nada.
-                pedido.setdefault("status", evento["status"])
+                if evento["status"] != "AGUARDANDO":  # Pix criado, ainda não pago: não é decisão
+                    pedido.setdefault("status", evento["status"])
             print(f"  {msg.topic():<22} partição {msg.partition()} · offset {msg.offset():>3} · "
                   f"pedido {evento['pedidoId']}", flush=True)
         if mensagens:

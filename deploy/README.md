@@ -9,7 +9,8 @@ Internet ─ 443 ─► Caddy ── /      → tela (arquivos estáticos)
                                         └───────► Kafka ◄── pagamentos
 ```
 
-> **Antes de vender de verdade:** o pagamento ainda é **simulado** (Fase 5 traz o Pix real) e não há nota fiscal (Fase 6).
+> **Antes de vender de verdade:** só o **Pix** pode ser real (`PIX_PROVEDOR=mercadopago`, seção "Pix" abaixo); crédito, débito e dinheiro continuam **simulados**,
+> e não há nota fiscal (Fase 6). Com o padrão `PIX_PROVEDOR=automatico`, o Pix também é simulado: aprova na hora, sem cobrança.
 > Esta pilha serve para uso interno e piloto com a equipe.
 
 ## O que a máquina precisa
@@ -45,6 +46,18 @@ ENV_FILE=deploy/.env bash scripts/e2e.sh https://SEU-ENDERECO/api      # o teste
 ```
 (Com `localhost`, use `CURL_OPTS=-k` no segundo comando, para aceitar o certificado de teste.) O `e2e.sh` cria lojas e produtos de
 teste no banco: use-o num ambiente de teste, não no sistema em uso.
+
+## Pix
+Três modos, em `PIX_PROVEDOR` (`deploy/.env`):
+- `automatico` (padrão): Pix simulado, aprova na hora. **Não use para vender.**
+- `simulado`: gera um QR de mentira; você "paga" com `docker compose -f deploy/compose.prod.yml exec pagamentos python -c "import urllib.request as u; print(u.urlopen(u.Request('http://127.0.0.1:5001/pix/simular/ID', method='POST')).read())"` (troque `ID` pelo número do pedido).
+- `mercadopago`: Pix de verdade. Passos (a conta é sua; começar pelo **sandbox** não tem custo):
+  1. Em *mercadopago.com.br/developers* crie uma aplicação e copie o **Access Token** (o de **teste** primeiro) para `MP_ACCESS_TOKEN`.
+  2. Em *Webhooks* da aplicação, cadastre `https://SEU-DOMINIO/webhooks/mercadopago`, evento **Pagamentos**, e copie a **chave secreta** para `MP_WEBHOOK_SECRET`.
+  3. Ponha `PUBLIC_URL=https://SEU-DOMINIO`, `PIX_PROVEDOR=mercadopago` e rode `docker compose -f deploy/compose.prod.yml up -d pagamentos`.
+  4. Faça um pedido Pix de R$ 1 e pague. Só depois troque para o token de produção.
+
+Sem domínio público o webhook não chega, mas a conferência a cada 30 s ainda confirma o pagamento (com até 30 s de atraso). Contrato em `specs/pagamentos.md`.
 
 ## Backup e restauração
 

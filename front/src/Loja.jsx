@@ -449,6 +449,16 @@ export default function Loja({ sessao, aoSair, topo }) {
                 ))}
                 {p.observacao && <p className="obs">“{p.observacao}”</p>}
                 {p.motivo && <p className="motivo">Motivo: {p.motivo}</p>}
+                {p.pix && (
+                  <div className="pix">
+                    <img src={`data:image/png;base64,${p.pix.qrCode}`} alt="QR code do Pix" width="140" height="140" />
+                    <div>
+                      <p><strong>Pague com Pix</strong> · vence às {new Date(p.pix.expiraEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                      <input readOnly value={p.pix.copiaECola} aria-label="Pix copia e cola" onFocus={(e) => e.target.select()} />
+                      <button type="button" className="botao" onClick={() => navigator.clipboard?.writeText(p.pix.copiaECola)}>Copiar código</button>
+                    </div>
+                  </div>
+                )}
                 <div className="trilha" aria-hidden="true">
                   <span className="etapa feita">Recebido</span>
                   <span className={p.status === 'AGUARDANDO_PAGAMENTO' ? 'etapa atual' : 'etapa feita'}>Pagamento</span>

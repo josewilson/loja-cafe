@@ -418,6 +418,23 @@ class PedidosApiApplicationTests {
         assertEquals(48, estoque(t, 3));
     }
 
+    @Test
+    void pixAguardandoGuardaOQrCodeEOPedidoContinuaAguardando() throws Exception {
+        String t = token(Papel.ATENDENTE, novaLoja());
+        long id = lancar(t, 3, 1);
+        listener.receber("{\"versao\":2,\"pedidoId\":" + id + ",\"status\":\"AGUARDANDO\",\"motivo\":null,\"instancia\":\"caixa-1\","
+                + "\"pix\":{\"copiaECola\":\"00020126PIX\",\"qrCode\":\"QUJD\",\"expiraEm\":\"2030-01-01T10:00:00Z\"}}");
+        GET(t, "/pedidos?limite=1").andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("AGUARDANDO_PAGAMENTO"))
+                .andExpect(jsonPath("$[0].pix.copiaECola").value("00020126PIX"))
+                .andExpect(jsonPath("$[0].pix.qrCode").value("QUJD"));
+        resultado(id, "APROVADO"); // pago: a cobrança some da resposta
+        GET(t, "/pedidos?limite=1").andExpect(jsonPath("$[0].status").value("PAGO")).andExpect(jsonPath("$[0].pix").doesNotExist());
+        // AGUARDANDO atrasado (depois do pagamento) não desfaz nada
+        listener.receber("{\"versao\":2,\"pedidoId\":" + id + ",\"status\":\"AGUARDANDO\",\"pix\":{\"copiaECola\":\"X\",\"qrCode\":\"Y\",\"expiraEm\":\"2030-01-01T10:00:00Z\"}}");
+        GET(t, "/pedidos?limite=1").andExpect(jsonPath("$[0].status").value("PAGO")).andExpect(jsonPath("$[0].pix").doesNotExist());
+    }
+
     // ---------- pedidos ----------
 
     @Test

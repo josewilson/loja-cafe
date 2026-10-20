@@ -4,7 +4,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && useradd --system --uid 10001 --no-create-home loja
-COPY app.py .
+COPY app.py pix.py ./
 USER loja
 # Dentro do contêiner escuta em todas as interfaces; a porta não é publicada para fora (só a rede interna do Docker alcança).
 ENV HOST=0.0.0.0 PORTA=5001 PYTHONUNBUFFERED=1

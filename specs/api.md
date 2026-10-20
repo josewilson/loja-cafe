@@ -44,7 +44,7 @@ Tamanhos, extras e formas de pagamento aceitos. Resposta `200`:
 
 | Forma de pagamento | `parcelasMax` | Como o Pagamentos decide (simulado) |
 |---|---|---|
-| `PIX` | 1 | Aprova em ~1 s, sem limite de valor |
+| `PIX` | 1 | Sem provedor de Pix (`PIX_PROVEDOR=automatico`, o padrão): aprova em ~1 s, sem limite. Com provedor: gera a cobrança, o pedido fica `AGUARDANDO_PAGAMENTO` com o campo `pix` até o cliente pagar (`PAGO`) ou a cobrança vencer (`RECUSADO`, motivo `pix expirado`) |
 | `CREDITO` | 3 | ~3 s; recusa acima de R$ 100,00 |
 | `DEBITO` | 1 | ~3 s; recusa acima de R$ 100,00 |
 | `DINHEIRO` | 1 | Pagamento no balcão: aprova na hora |
@@ -130,10 +130,12 @@ Pedidos **da loja do usuário**, **mais novo primeiro** (padrão 100, de 1 a 200
     "itens": [ { "produtoId": 2, "item": "Cappuccino", "quantidade": 2, "tamanho": "GRANDE",
                  "extras": ["CHANTILLY", "CANELA"], "precoUnitario": 17.50, "valor": 35.00 } ],
     "valor": 35.00, "status": "AGUARDANDO_PAGAMENTO", "preparo": "NA_FILA", "motivo": null, "processadoPor": null,
-    "criadoEm": "2026-10-17T16:05:00Z" }
+    "pix": null, "criadoEm": "2026-10-17T16:05:00Z" }
 ]
 ```
 `item` é o nome do produto no momento do pedido.
+`pix` é `null`, exceto em pedido `PIX` que **ainda aguarda o pagamento** e já tem cobrança: então vem
+`{ "copiaECola": "0002012...", "qrCode": "<PNG em base64>", "expiraEm": "2026-10-17T16:15:00Z" }` (a tela mostra o QR). Quando o pedido é concluído, volta a `null`.
 
 ## Cardápio da rede (`ADMIN`)
 Quem edita o cardápio é só o `ADMIN`, porque ele é da rede: o preço muda em todas as lojas. O gerente cuida do estoque da própria loja.

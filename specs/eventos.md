@@ -25,9 +25,14 @@ Quem lê já ignora a repetição: o primeiro resultado vale.
 Quem publica: `pagamentos-py`, depois de decidir.
 ```json
 { "versao": 1, "pedidoId": 12, "status": "APROVADO", "motivo": null,
-  "instancia": "caixa-1", "processadoEm": "2026-10-17T16:05:03Z" }
+  "instancia": "caixa-1", "processadoEm": "2026-10-17T16:05:03Z", "pix": null }
 ```
-`status`: `APROVADO` ou `RECUSADO`.
+`status`: `APROVADO`, `RECUSADO` ou `AGUARDANDO`.
+- `AGUARDANDO` (Fase 5) **não é uma decisão**: o Pagamentos criou a cobrança Pix e o cliente ainda não pagou. Só acontece com `formaPagamento = PIX`
+  quando o provedor de Pix está ligado (`PIX_PROVEDOR` diferente de `automatico`, veja `specs/pagamentos.md`). O campo `pix` vem preenchido só neste caso:
+  `"pix": { "copiaECola": "0002012...", "qrCode": "<PNG em base64>", "expiraEm": "2026-10-17T16:15:00Z" }`; nos demais é `null`.
+- Depois do `AGUARDANDO` vem **um** `APROVADO` (Pix pago) ou `RECUSADO` (`"motivo": "pix expirado"` ou `"pix indisponível no momento"`).
+  Quem lê trata `AGUARDANDO` como informação e **não** como o resultado do pedido; o primeiro `APROVADO`/`RECUSADO` é que vale.
 
 ## Grupos de consumidores
 | Grupo | Lê | Quem |

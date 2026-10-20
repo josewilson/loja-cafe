@@ -10,6 +10,11 @@ Configuração por variável de ambiente (o serviço também lê `infra/.env` so
 | `KAFKA` | `localhost:9092` | Broker (no Docker de produção: `kafka:19092`) |
 | `KAFKA_USER` · `KAFKA_PASSWORD` | obrigatórias | Login SASL/PLAIN do broker (sem elas o serviço recusa iniciar) |
 
+| `PIX_PROVEDOR` | `automatico` | Como o Pix é cobrado: `automatico`, `simulado` ou `mercadopago` (seção "Pix" abaixo) |
+| `MP_ACCESS_TOKEN` · `MP_WEBHOOK_SECRET` | — | Só com `mercadopago`: token da API e chave secreta do webhook (as duas obrigatórias) |
+| `PUBLIC_URL` | — | Endereço público do sistema; vira o `notification_url` das cobranças. Sem ele só vale a conferência periódica |
+| `PIX_EXPIRA_MINUTOS` · `PIX_CONSULTA_SEGUNDOS` | `10` · `30` | Validade da cobrança · intervalo da conferência das cobranças em aberto |
+
 Servidor HTTP: **Waitress** (servidor de produção; o `app.run` do Flask é só de desenvolvimento).
 
 ## Regra de negócio
@@ -25,6 +30,26 @@ a mesma tabela está em `specs/api.md`). O atraso base ("falar com o banco") é 
 Evento sem `formaPagamento` (versão 1) ou com forma desconhecida: vale a regra do **crédito**.
 Evento quebrado (JSON inválido, sem `pedidoId` ou `valor`, `valor` negativo, `NaN` ou não numérico) é **ignorado**:
 uma linha de log ("evento inválido ignorado") e o serviço segue com o próximo, sem derrubar o consumidor.
+
+## Pix (Fase 5)
+A linha `PIX` da tabela acima vale com `PIX_PROVEDOR=automatico` (o padrão: nada muda). Com `simulado` ou `mercadopago`, o Pix passa a ser uma **cobrança**:
+
+1. Chega `pedidos-criados` com `formaPagamento = PIX`. O Pagamentos cria a cobrança no provedor e publica em `pagamentos-resultados` o status
+   `AGUARDANDO` com o campo `pix` (copia e cola, QR e validade; veja `specs/eventos.md`). O pedido continua `AGUARDANDO_PAGAMENTO`.
+2. Quando o cliente paga, o Pagamentos publica `APROVADO`. Se a cobrança vence (`PIX_EXPIRA_MINUTOS`), publica `RECUSADO` com motivo `pix expirado`.
+   Se o provedor está fora do ar ao criar a cobrança: `RECUSADO` com motivo `pix indisponível no momento` (o balcão cobra de outro jeito).
+3. Como o Pagamentos descobre o pagamento (`mercadopago`): pelo **webhook** `POST /webhooks/mercadopago` (público, o Caddy encaminha só este caminho) e,
+   como rede de segurança, perguntando ao provedor a cada `PIX_CONSULTA_SEGUNDOS` por cada cobrança em aberto. O webhook só vale com `x-signature`
+   correta (HMAC-SHA256 com `MP_WEBHOOK_SECRET`) e **nunca** aprova pelo que o aviso diz: o Pagamentos consulta o pagamento no Mercado Pago e usa a resposta.
+   Assinatura errada ou ausente: `401`. Mercado Pago fora do ar na consulta: `502` (ele reenvia).
+4. A cobrança usa `external_reference = pedidoId` e a chave de idempotência `loja-cafe-pedido-<id>`: repetir o evento (`/pedidos/reenfileirar`) devolve
+   a **mesma** cobrança, não cria outra.
+
+`simulado` não fala com ninguém: `POST /pix/simular/<pedidoId>` (no Pagamentos, porta 5001; não passa pelo Caddy) faz de conta que o cliente pagou.
+Dá `404` fora do modo `simulado` e quando o pedido não tem Pix em aberto **nesta instância**.
+
+Limites: as cobranças em aberto vivem na memória da instância (reiniciar o Pagamentos as esquece até `POST /pedidos/reenfileirar`; o webhook, por outro lado,
+funciona em qualquer instância). Só o Pix é real; crédito, débito e dinheiro continuam simulados.
 
 ## Ato 2 · por HTTP (síncrono)
 `POST http://localhost:5001/pagamentos`

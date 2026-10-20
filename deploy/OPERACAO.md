@@ -77,6 +77,13 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" "https://SEU-ENDERECO/api/pedi
 Isso publica de novo o evento dos pedidos parados. É seguro repetir: a API aceita só o **primeiro** resultado de cada pedido.
 `minutos=0` reenvia todos os que ainda esperam; sem o parâmetro, só os parados há mais tempo que o padrão.
 
+## Pix não confirma
+O cliente pagou e o pedido continua "aguardando":
+1. `$C logs --tail=50 pagamentos`: procure `Mercado Pago:` (token errado/vencido, Mercado Pago fora do ar) e `webhook`.
+2. `401` nos avisos do webhook = `MP_WEBHOOK_SECRET` errado. A conferência a cada 30 s ainda confirma, mas corrija o segredo.
+3. Pagamentos reiniciou: as cobranças em aberto só vivem na memória. Rode o reenfileirar (seção "Pedidos parados"): ele devolve a **mesma** cobrança, não cria outra.
+4. Pix vencido (10 min) vira `RECUSADO` sozinho; se o cliente pagou depois, devolva o dinheiro pelo painel do Mercado Pago e refaça o pedido.
+
 ## Disco cheio
 ```bash
 df -h .  &&  docker system df
