@@ -108,6 +108,8 @@ Contrato completo em [`specs/api.md`](specs/api.md).
 | `GET` `POST` | `/lojas` 🔒 admin | Lista e cria lojas (com estoque inicial opcional) |
 | `PUT` | `/lojas/{id}/estoque/{produtoId}` 🔒 admin, gerente | Define o estoque de um produto na loja |
 | `GET` | `/auditoria` 🔒 admin, gerente | Quem fez o quê e quando |
+| `POST` | `/pedidos/reenfileirar` 🔒 admin | Reenvia ao Pagamentos os pedidos parados em "aguardando pagamento" (depois de restaurar um backup) |
+| `GET` | `/saude` | Público: o banco e o Kafka estão de pé? (monitoramento e Docker) |
 | `GET` | `/cozinha` 🔒 | A fila da loja: pedidos pagos ainda não retirados, do mais antigo ao mais novo |
 | `PUT` | `/pedidos/{id}/preparo` 🔒 cozinha, atendente, gerente | Avança o pedido: `PREPARANDO` → `PRONTO` (cozinha) → `RETIRADO` (balcão) |
 | `PUT` | `/pedidos/{id}/cancelar` 🔒 gerente | Cancela até ficar `PRONTO` (e antes de entrar num fechamento de caixa) e devolve o estoque |
@@ -211,8 +213,8 @@ Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plan
 | 3c-1. Cardápio editável | O ADMIN cria produtos, reajusta preços e liga/desliga itens (aba "Cardápio da rede") | feita |
 | 3c-2. Insumos | Ficha técnica, estoque de insumos por loja, baixa automática na venda (sem bloquear), devolução na recusa e alertas | feita |
 | 4a. Empacotar | Dockerfiles, Caddy com HTTPS, `deploy/compose.prod.yml`, `GET /saude` (veja `deploy/README.md`) | feita |
-| 4b. Backup e vigília | Backup criptografado fora do servidor, restauração testada, alertas | próxima |
-| 4c. Publicar | Script de deploy e manual de operação | pendente |
+| 4b. Backup e vigília | Backup diário criptografado com cópia fora do servidor, restauração testada, `status.sh`, alertas (veja `deploy/README.md`) | feita |
+| 4c. Publicar | Script de deploy e manual de operação | próxima |
 | 5. Pix real | Provedor de pagamento, webhook assinado | pendente |
 | 6. Nota fiscal | Emissor fiscal (confirmar com o contador) | pendente |
 

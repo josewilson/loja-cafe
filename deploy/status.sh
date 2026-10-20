@@ -5,7 +5,7 @@
 set -uo pipefail
 export MSYS_NO_PATHCONV=1
 
-RAIZ=$(cd "$(dirname "$0")/.." && pwd)
+RAIZ=$(cd "$(dirname "$0")/.." && { pwd -W 2>/dev/null || pwd; })   # pwd -W: caminho no formato do Windows (Git Bash); no Linux cai no pwd
 COMPOSE=(docker compose -f "$RAIZ/deploy/compose.prod.yml")
 ENV_FILE=$RAIZ/deploy/.env
 [ -f "$ENV_FILE" ] && { set -a; . "$ENV_FILE"; set +a; }

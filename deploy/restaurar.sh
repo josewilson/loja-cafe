@@ -13,7 +13,8 @@
 set -euo pipefail
 export MSYS_NO_PATHCONV=1
 
-RAIZ=$(cd "$(dirname "$0")/.." && pwd)
+RAIZ=$(cd "$(dirname "$0")/.." && { pwd -W 2>/dev/null || pwd; })   # pwd -W: caminho no formato do Windows (Git Bash); no Linux cai no pwd
+caminho() { (cd "$1" && { pwd -W 2>/dev/null || pwd; }); }
 COMPOSE=(docker compose -f "$RAIZ/deploy/compose.prod.yml")
 SEM_DEPENDENCIAS=(run --rm --no-deps)
 
@@ -48,19 +49,21 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -f "$CHAVE" ] || { echo "não encontro a chave privada: $CHAVE" >&2; exit 1; }
-CHAVE_ABS=$(cd "$(dirname "$CHAVE")" && pwd)/$(basename "$CHAVE")
+CHAVE_ABS=$(caminho "$(dirname "$CHAVE")")/$(basename "$CHAVE")
 
 MONTAGENS=(-v "$CHAVE_ABS":/chave.txt:ro)
 if [ -f "$ARQUIVO" ]; then # caminho de um arquivo desta máquina: monta a pasta dele (para pegar o .sha256 junto)
-  PASTA=$(cd "$(dirname "$ARQUIVO")" && pwd)
+  PASTA=$(caminho "$(dirname "$ARQUIVO")")
   MONTAGENS+=(-v "$PASTA":/entrada:ro)
   DENTRO=/entrada/$(basename "$ARQUIVO")
 else
   DENTRO=/backups/$ARQUIVO # um backup que já está na pasta de backups do servidor
 fi
 
+# --user root: a chave privada tem permissão 0600 (só do dono, na máquina) e o usuário do contêiner não conseguiria lê-la.
+# O contêiner só lê a chave e fala com o banco pela rede; não escreve em nada além de uma pasta temporária.
 restaurar() { # restaurar <banco> [--substituir]
-  "${COMPOSE[@]}" "${SEM_DEPENDENCIAS[@]}" "${MONTAGENS[@]}" --entrypoint restaurar.sh backup "$DENTRO" /chave.txt "$@"
+  "${COMPOSE[@]}" "${SEM_DEPENDENCIAS[@]}" --user root "${MONTAGENS[@]}" --entrypoint restaurar.sh backup "$DENTRO" /chave.txt "$@"
 }
 
 if [ "$SUBSTITUIR" -eq 0 ]; then

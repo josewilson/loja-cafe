@@ -118,6 +118,9 @@ jobs:
         run: |
           cp deploy/.env.example deploy/.env
           sed -i 's/^SITE_ADDRESS=.*/SITE_ADDRESS=:80/' deploy/.env
+          # Backup é obrigatório: gera um par de chaves só para este teste (a privada fica em /tmp, fora do repositório).
+          bash deploy/gerar-chave-backup.sh /tmp/chave-ci.txt
+          sed -i "s/^BACKUP_AGE_RECIPIENT=.*/BACKUP_AGE_RECIPIENT=$(sed -n 's/^# public key: //p' /tmp/chave-ci.txt)/" deploy/.env
 
       - name: Constrói as imagens e sobe a pilha de produção (Caddy, API, Pagamentos, Postgres, Kafka)
         run: docker compose -f deploy/compose.prod.yml up -d --build --wait
@@ -130,6 +133,29 @@ jobs:
       - name: Teste de ponta a ponta contra a produção (pelo /api do Caddy)
         run: ENV_FILE=deploy/.env bash scripts/e2e.sh http://localhost/api
 
+      - name: Backup e restauração na pilha de produção (o banco restaurado tem que ser idêntico ao original)
+        run: |
+          C="docker compose -f deploy/compose.prod.yml"
+          $C exec -T backup backup.sh
+          ARQ=$($C exec -T backup sh -c 'ls -1t /backups | grep "\.dump\.age$" | head -1' | tr -d '\r')
+          echo "restaurando $ARQ"
+          bash deploy/restaurar.sh "$ARQ" /tmp/chave-ci.txt
+          Q="select (select count(*) from pedido) || '/' || (select count(*) from usuario) || '/' || coalesce((select sum(valor)::text from pedido),'0') || '/' || (select count(*) from auditoria)"
+          ORIGINAL=$($C exec -T postgres psql -U loja -d loja_cafe -Atc "$Q")
+          RESTAURADO=$($C exec -T postgres psql -U loja -d loja_cafe_restaurado -Atc "$Q")
+          echo "original:   $ORIGINAL"; echo "restaurado: $RESTAURADO"
+          [ "$ORIGINAL" = "$RESTAURADO" ] || { echo 'o banco restaurado é diferente do original'; exit 1; }
+          bash deploy/status.sh || true
+
       - name: Logs (se falhou)
         if: failure()
         run: docker compose -f deploy/compose.prod.yml logs --tail=100
+
+  backup:
+    name: backup (cifra, cópia de fora, restauração, retenção)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Teste de backup e restauração num Postgres descartável
+        run: bash scripts/testar-backup.sh
