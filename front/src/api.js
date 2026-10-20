@@ -1,5 +1,6 @@
-// Endereço da pedidos-api (specs/api.md).
-const API = 'http://localhost:8081'
+// Endereço da pedidos-api (specs/api.md). Em desenvolvimento é a porta 8081; em produção a imagem do front
+// é construída com VITE_API_URL=/api (tela e API no mesmo endereço, atrás do Caddy).
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:8081'
 const CHAVE = 'loja-cafe:sessao'
 
 // Erro de rede (API fora do ar) ou HTTP (400, 401, 403, 500...), com mensagens prontas para mostrar na tela.
@@ -50,7 +51,7 @@ async function pedir(caminho, opcoes = {}) {
       headers: { ...opcoes.headers, ...(token && { Authorization: `Bearer ${token}` }) },
     })
   } catch {
-    throw new ApiErro('rede', 0, [`Não consegui falar com a API (${API}). Ela está rodando?`])
+    throw new ApiErro('rede', 0, [`Não consegui falar com o servidor (${API}). Ele está no ar?`])
   }
   if (!resposta.ok) {
     // Token vencido, inválido ou conta desativada (fora do login): esquece a sessão; a tela volta para o login.

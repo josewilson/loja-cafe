@@ -11,6 +11,7 @@ Simplicidade vale mais que "boas práticas de produção": código curto, legív
 | `pagamentos-py/` | Python 3 + Flask | 5001 (5002 para a 2ª instância) |
 | `analytics-py/` | Script Python, sem servidor web | — |
 | `infra/compose.yml` | Postgres (5433) + Kafka (9092) + painel kafka-ui (8090) | 5433 / 9092 / 8090 |
+| `deploy/` | Produção: `compose.prod.yml` + Caddy (HTTPS). Só 80/443 expostas; a API fica em `/api` | 80 / 443 |
 
 ## Regras
 - Os contratos estão em `specs/`. **Não invente** endpoint, campo, tópico ou status que não esteja lá.

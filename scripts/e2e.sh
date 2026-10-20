@@ -1,15 +1,19 @@
 #!/usr/bin/env bash
 # Teste de ponta a ponta contra o sistema NO AR (Postgres, Kafka, pedidos-api e pagamentos-py rodando):
 #   ADMIN -> cria 2 lojas e um atendente -> pedido -> Kafka -> Pagamentos -> status -> estoque da loja.
-# Usa ADMIN_EMAIL e ADMIN_PASSWORD (ambiente ou infra/.env). Cada execução cria lojas novas (não gasta o estoque das existentes).
-# Uso: scripts/e2e.sh [url-da-api]. Sai com código 1 no primeiro passo que falhar.
+# Usa ADMIN_EMAIL e ADMIN_PASSWORD (ambiente ou infra/.env; ENV_FILE troca o arquivo). Cada execução cria lojas novas (não gasta o estoque das existentes).
+# Uso: scripts/e2e.sh [url-da-api] (em produção: https://seu-dominio/api). Sai com código 1 no primeiro passo que falhar.
 set -euo pipefail
 
 RAIZ=$(cd "$(dirname "$0")/.." && pwd)
-if [ -f "$RAIZ/infra/.env" ]; then set -a; . "$RAIZ/infra/.env"; set +a; fi
+# As credenciais do ADMIN vêm do ambiente ou de ENV_FILE (padrão: infra/.env; em produção, deploy/.env).
+ENV_FILE=${ENV_FILE:-$RAIZ/infra/.env}
+if [ -f "$ENV_FILE" ]; then set -a; . "$ENV_FILE"; set +a; fi
 : "${ADMIN_EMAIL:?defina ADMIN_EMAIL (infra/.env)}" "${ADMIN_PASSWORD:?defina ADMIN_PASSWORD (infra/.env)}"
 
 API=${1:-http://localhost:8081}
+# Opções extras do curl (ex.: CURL_OPTS=-k para aceitar o certificado de teste do Caddy em https://localhost/api).
+curl() { command curl $CURL_OPTS "$@"; }
 SUFIXO="$RANDOM$RANDOM"
 
 falhar() { echo "FALHOU: $*" >&2; exit 1; }

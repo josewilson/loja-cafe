@@ -1,0 +1,29 @@
+# Porta de entrada do sistema. SITE_ADDRESS (em deploy/.env) escolhe o modo:
+#   cafe.exemplo.com.br  -> HTTPS de verdade: o Caddy pede e renova o certificado (Let's Encrypt) sozinho
+#   localhost            -> HTTPS de teste (certificado do próprio Caddy; o navegador avisa, é esperado)
+#   :80                  -> HTTP puro, só para rede local confiável (sem HTTPS, as senhas viajam sem proteção)
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy no-referrer
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	# A API fica em /api. O Caddy tira o prefixo: a pedidos-api continua com as rotas de sempre.
+	# Os cabeçalhos de segurança dela (CSP restritivo) passam como vieram.
+	handle_path /api/* {
+		reverse_proxy pedidos-api:8081
+	}
+
+	# Todo o resto é a tela. Rota desconhecida cai no index.html (a tela é uma página só).
+	handle {
+		header Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'"
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

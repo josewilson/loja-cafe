@@ -210,7 +210,9 @@ Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plan
 | 3b. Painel do gerente | Vendas do dia, fechamento de caixa por turno, equipe e estoque (aba "Gerência") | feita |
 | 3c-1. Cardápio editável | O ADMIN cria produtos, reajusta preços e liga/desliga itens (aba "Cardápio da rede") | feita |
 | 3c-2. Insumos | Ficha técnica, estoque de insumos por loja, baixa automática na venda (sem bloquear), devolução na recusa e alertas | feita |
-| 4. Hospedagem | Docker, HTTPS, backup, monitoramento | próxima |
+| 4a. Empacotar | Dockerfiles, Caddy com HTTPS, `deploy/compose.prod.yml`, `GET /saude` (veja `deploy/README.md`) | feita |
+| 4b. Backup e vigília | Backup criptografado fora do servidor, restauração testada, alertas | próxima |
+| 4c. Publicar | Script de deploy e manual de operação | pendente |
 | 5. Pix real | Provedor de pagamento, webhook assinado | pendente |
 | 6. Nota fiscal | Emissor fiscal (confirmar com o contador) | pendente |
 

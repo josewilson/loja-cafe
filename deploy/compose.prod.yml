@@ -1,0 +1,133 @@
+name: loja-cafe-prod
+# Produção numa única máquina com Docker. Uso (a partir da raiz do repositório):
+#   cp deploy/.env.example deploy/.env      # e troque as senhas
+#   docker compose -f deploy/compose.prod.yml up -d --build
+# Só a porta 80/443 (Caddy) aparece para fora. Postgres, Kafka, API e Pagamentos ficam na rede interna do Docker.
+# Mínimo recomendado: 4 GB de RAM, 2 CPUs e 40 GB de disco.
+
+x-logs: &logs
+  # Logs não crescem para sempre: 3 arquivos de 10 MB por serviço.
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  kafka:
+    <<: *logs
+    image: apache/kafka:3.9.1
+    hostname: kafka
+    restart: unless-stopped
+    mem_limit: 1g
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # Uma única porta de entrada, interna (kafka:19092), com login. Nada de porta publicada no servidor.
+      KAFKA_LISTENERS: INTERNO://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNO://kafka:19092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNO:SASL_PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+      KAFKA_LISTENER_NAME_INTERNO_PLAIN_SASL_JAAS_CONFIG: >-
+        org.apache.kafka.common.security.plain.PlainLoginModule required
+        username="${KAFKA_USER:?defina KAFKA_USER em deploy/.env}" password="${KAFKA_PASSWORD:?defina KAFKA_PASSWORD em deploy/.env}"
+        user_${KAFKA_USER}="${KAFKA_PASSWORD}";
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      # Mensagens vivem 7 dias: o disco não enche. (O Postgres é a fonte da verdade dos pedidos.)
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
+      # Para o healthcheck abaixo (o $$ é lido pelo shell do contêiner, não pelo compose).
+      CLIENTE_USER: ${KAFKA_USER}
+      CLIENTE_SENHA: ${KAFKA_PASSWORD}
+    volumes: ["dados-kafka:/var/lib/kafka/data"]
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - |
+          printf 'security.protocol=SASL_PLAINTEXT\nsasl.mechanism=PLAIN\nsasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required username="%s" password="%s";\n' "$$CLIENTE_USER" "$$CLIENTE_SENHA" > /tmp/cliente.properties
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --command-config /tmp/cliente.properties --list
+      interval: 10s
+      timeout: 15s
+      retries: 30
+
+  postgres:
+    <<: *logs
+    image: postgres:16
+    restart: unless-stopped
+    mem_limit: 768m
+    environment:
+      POSTGRES_DB: loja_cafe
+      POSTGRES_USER: ${POSTGRES_USER:-loja}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD em deploy/.env}
+    volumes: ["dados-postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-loja} -d loja_cafe"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  pedidos-api:
+    <<: *logs
+    build: ../pedidos-api
+    restart: unless-stopped
+    mem_limit: 768m
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/loja_cafe
+      DB_USER: ${POSTGRES_USER:-loja}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      KAFKA_BOOTSTRAP: kafka:19092
+      KAFKA_USER: ${KAFKA_USER}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?defina ADMIN_EMAIL em deploy/.env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD em deploy/.env}
+      # Atrás do Caddy: o IP de quem chama vem no X-Forwarded-For (o limite de tentativas de login usa o IP).
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+    depends_on:
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_healthy }
+
+  pagamentos:
+    <<: *logs
+    build: ../pagamentos-py
+    restart: unless-stopped
+    mem_limit: 256m
+    environment:
+      KAFKA: kafka:19092
+      KAFKA_USER: ${KAFKA_USER}
+      KAFKA_PASSWORD: ${KAFKA_PASSWORD}
+      INSTANCIA: caixa-1
+    depends_on:
+      kafka: { condition: service_healthy }
+
+  web:
+    <<: *logs
+    build:
+      context: ..
+      dockerfile: front/Dockerfile
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      # Os certificados ficam em volume: reiniciar não pede certificado novo (o Let's Encrypt limita pedidos).
+      - caddy-dados:/data
+      - caddy-config:/config
+    depends_on:
+      pedidos-api: { condition: service_healthy }
+
+volumes:
+  dados-kafka:
+  dados-postgres:
+  caddy-dados:
+  caddy-config:
