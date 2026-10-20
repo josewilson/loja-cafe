@@ -147,6 +147,12 @@ jobs:
           [ "$ORIGINAL" = "$RESTAURADO" ] || { echo 'o banco restaurado é diferente do original'; exit 1; }
           bash deploy/status.sh || true
 
+      - name: Atualizador (simulacao e atualizacao real para o commit atual)
+        run: |
+          bash deploy/atualizar.sh --simular --versao "$(git rev-parse HEAD)" --forcar
+          bash deploy/atualizar.sh --versao "$(git rev-parse HEAD)" --forcar
+          curl -fs http://localhost/api/saude
+
       - name: Logs (se falhou)
         if: failure()
         run: docker compose -f deploy/compose.prod.yml logs --tail=100

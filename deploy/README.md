@@ -110,9 +110,11 @@ O backup também avisa, no log e no ping, quando o **disco passa de 90%**. Os lo
 docker compose -f deploy/compose.prod.yml logs -f pedidos-api     # logs (ficam limitados a 3 × 10 MB por serviço)
 docker compose -f deploy/compose.prod.yml restart pedidos-api     # reiniciar uma parte
 docker compose -f deploy/compose.prod.yml stop                    # parar tudo SEM apagar dados
-git pull && docker compose -f deploy/compose.prod.yml up -d --build   # atualizar para a versão nova
+bash deploy/atualizar.sh                                          # atualizar para a versão nova (backup antes; volta sozinho se falhar)
 ```
 **Nunca use `docker compose down -v`**: o `-v` apaga os volumes, ou seja, o banco de pedidos e os certificados.
+
+Problemas, restauração, atualização e rotina: **[`OPERACAO.md`](OPERACAO.md)** (manual de operação).
 
 ## O que protege esta instalação
 - Só 80/443 expostas; Postgres, Kafka, API e Pagamentos sem porta publicada.

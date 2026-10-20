@@ -13,6 +13,7 @@ Simplicidade vale mais que "boas práticas de produção": código curto, legív
 | `analytics-py/` | Script Python, sem servidor web | — |
 | `infra/compose.yml` | Postgres (5433) + Kafka (9092) + painel kafka-ui (8090) | 5433 / 9092 / 8090 |
 | `deploy/` | Produção: `compose.prod.yml` + Caddy (HTTPS). Só 80/443 expostas; a API fica em `/api` | 80 / 443 |
+| `deploy/` (scripts) | `atualizar.sh` (atualiza/volta de versão), `restaurar.sh`, `status.sh`; manual em `deploy/OPERACAO.md` | — |
 | `deploy/backup/` | Backup criptografado do Postgres, restauração e retenção (scripts de shell, imagem própria) | — |
 | `scripts/` | `e2e.sh` (ponta a ponta), `testar-backup.sh`, `conferir-specs.js`, `criar-usuario.sh` | — |
 | `.github/workflows/` | CI: testes, ponta a ponta, pilha de produção, backup e conferência das specs | — |

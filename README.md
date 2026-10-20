@@ -220,7 +220,7 @@ Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plan
 | 3c-2. Insumos | Ficha técnica, estoque de insumos por loja, baixa automática na venda (sem bloquear), devolução na recusa e alertas | feita |
 | 4a. Empacotar | Dockerfiles, Caddy com HTTPS, `deploy/compose.prod.yml`, `GET /saude` (veja `deploy/README.md`) | feita |
 | 4b. Backup e vigília | Backup diário criptografado com cópia fora do servidor, restauração testada, `status.sh`, alertas (veja `deploy/README.md`) | feita |
-| 4c. Publicar | Script de deploy e manual de operação | próxima |
+| 4c. Publicar | `deploy/atualizar.sh` (backup antes, volta sozinho se falhar) e manual de operação (`deploy/OPERACAO.md`) | feita |
 | 5. Pix real | Provedor de pagamento, webhook assinado | pendente |
 | 6. Nota fiscal | Emissor fiscal (confirmar com o contador) | pendente |
 
