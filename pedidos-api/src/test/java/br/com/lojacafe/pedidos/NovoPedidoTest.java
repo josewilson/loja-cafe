@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.PedidoController.NovoPedido;
 import static org.junit.jupiter.api.Assertions.*;
 
 import jakarta.validation.Validation;

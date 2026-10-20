@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.AuthController.Papeis;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
@@ -32,9 +33,9 @@ public class CardapioRedeController {
     private final ProdutoRepository produtos;
     private final LojaRepository lojas;
     private final EstoqueLojaRepository estoque;
-    private final Auditor auditor;
+    private final AuditoriaRepository auditor;
 
-    public CardapioRedeController(ProdutoRepository produtos, LojaRepository lojas, EstoqueLojaRepository estoque, Auditor auditor) {
+    public CardapioRedeController(ProdutoRepository produtos, LojaRepository lojas, EstoqueLojaRepository estoque, AuditoriaRepository auditor) {
         this.produtos = produtos;
         this.lojas = lojas;
         this.estoque = estoque;
@@ -52,7 +53,7 @@ public class CardapioRedeController {
     @Papeis(Papel.ADMIN)
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    public ProdutoVista criar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @Valid @RequestBody DadosProduto dados) {
+    public ProdutoVista criar(@RequestAttribute(AuthController.USUARIO) Usuario quem, @Valid @RequestBody DadosProduto dados) {
         if (produtos.findByNomeIgnoreCase(dados.nome().trim()).isPresent()) {
             throw nomeRepetido();
         }
@@ -70,7 +71,7 @@ public class CardapioRedeController {
     @PutMapping("/{id}")
     @Papeis(Papel.ADMIN)
     @Transactional
-    public ProdutoVista alterar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @PathVariable Long id,
+    public ProdutoVista alterar(@RequestAttribute(AuthController.USUARIO) Usuario quem, @PathVariable Long id,
                                 @Valid @RequestBody DadosProduto dados) {
         Produto produto = produtos.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Produto não existe"));

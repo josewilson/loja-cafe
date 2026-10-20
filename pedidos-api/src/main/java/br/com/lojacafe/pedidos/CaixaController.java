@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.AuthController.Papeis;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -31,9 +32,9 @@ public class CaixaController {
 
     private final PedidoRepository pedidos;
     private final FechamentoCaixaRepository fechamentos;
-    private final Auditor auditor;
+    private final AuditoriaRepository auditor;
 
-    public CaixaController(PedidoRepository pedidos, FechamentoCaixaRepository fechamentos, Auditor auditor) {
+    public CaixaController(PedidoRepository pedidos, FechamentoCaixaRepository fechamentos, AuditoriaRepository auditor) {
         this.pedidos = pedidos;
         this.fechamentos = fechamentos;
         this.auditor = auditor;
@@ -58,7 +59,7 @@ public class CaixaController {
     /** O turno aberto: o que foi vendido desde o último fechamento. */
     @GetMapping("/resumo")
     @Papeis({Papel.ADMIN, Papel.GERENTE})
-    public ResumoCaixa resumo(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario, @RequestParam(required = false) Long lojaId) {
+    public ResumoCaixa resumo(@RequestAttribute(AuthController.USUARIO) Usuario usuario, @RequestParam(required = false) Long lojaId) {
         Long loja = lojaObrigatoria(usuario, lojaId);
         var formas = porForma(pedidos.turnoAbertoPorForma(loja, StatusPedido.PAGO, Preparo.CANCELADO));
         Instant desde = fechamentos.findFirstByLojaIdOrderByIdDesc(loja).map(FechamentoCaixa::getAte).orElse(null);
@@ -74,7 +75,7 @@ public class CaixaController {
     @Papeis(Papel.GERENTE)
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    public FechamentoVista fechar(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario, @Valid @RequestBody Fechar corpo) {
+    public FechamentoVista fechar(@RequestAttribute(AuthController.USUARIO) Usuario usuario, @Valid @RequestBody Fechar corpo) {
         Long loja = usuario.getLojaId();
         Instant desde = fechamentos.findFirstByLojaIdOrderByIdDesc(loja).map(FechamentoCaixa::getAte).orElse(null);
         FechamentoCaixa novo = fechamentos.save(new FechamentoCaixa(loja, usuario.getId(), desde, corpo.dinheiroContado(), corpo.observacao()));
@@ -96,11 +97,11 @@ public class CaixaController {
     /** Histórico, do mais novo ao mais antigo (padrão 50, de 1 a 200). */
     @GetMapping("/fechamentos")
     @Papeis({Papel.ADMIN, Papel.GERENTE})
-    public List<FechamentoVista> historico(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario,
+    public List<FechamentoVista> historico(@RequestAttribute(AuthController.USUARIO) Usuario usuario,
                                            @RequestParam(defaultValue = "50") int limite,
                                            @RequestParam(required = false) Long lojaId) {
         var pagina = PageRequest.of(0, Math.max(1, Math.min(limite, 200)));
-        Long loja = Autenticacao.escopo(usuario, lojaId);
+        Long loja = AuthController.escopo(usuario, lojaId);
         var lista = loja == null ? fechamentos.findAllByOrderByIdDesc(pagina) : fechamentos.findByLojaIdOrderByIdDesc(loja, pagina);
         // ponytail: uma consulta por fechamento para a quebra por forma (no máximo 200); se o histórico crescer, guardar a quebra no fechamento.
         return lista.stream().map(f -> vista(f, porForma(pedidos.doFechamentoPorForma(f.getId())))).toList();
@@ -112,7 +113,7 @@ public class CaixaController {
     }
 
     static Long lojaObrigatoria(Usuario usuario, Long lojaId) {
-        Long loja = Autenticacao.escopo(usuario, lojaId);
+        Long loja = AuthController.escopo(usuario, lojaId);
         if (loja == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe lojaId");
         }

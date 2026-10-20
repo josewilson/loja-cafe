@@ -1,16 +1,34 @@
 package br.com.lojacafe.pedidos;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Ato 3: lê pagamentos-resultados e atualiza o status do pedido. */
+/**
+ * Toda a conversa com o Kafka numa classe só (specs/eventos.md): cria os dois tópicos, anota em pedidos-criados que um pedido
+ * nasceu e lê pagamentos-resultados para atualizar o status do pedido.
+ */
 @Component
-public class ResultadoPagamentoListener {
+public class PagamentosKafka {
+
+    public static final String PEDIDOS_CRIADOS = "pedidos-criados";
+    public static final String PAGAMENTOS_RESULTADOS = "pagamentos-resultados";
+
+    record ItemEvento(String item, int quantidade) {}
+
+    record PedidoCriado(int versao, Long pedidoId, Long lojaId, String cliente, List<ItemEvento> itens, BigDecimal valor,
+                        FormaPagamento formaPagamento, Integer parcelas, Instant criadoEm) {}
 
     record ResultadoPagamento(int versao, Long pedidoId, String status, String motivo,
                               String instancia, String processadoEm, Pix pix) {}
@@ -18,21 +36,49 @@ public class ResultadoPagamentoListener {
     /** Cobrança Pix (status AGUARDANDO): specs/eventos.md. */
     record Pix(String copiaECola, String qrCode, Instant expiraEm) {}
 
-    private static final Logger log = LoggerFactory.getLogger(ResultadoPagamentoListener.class);
+    private static final Logger log = LoggerFactory.getLogger(PagamentosKafka.class);
 
+    private final KafkaTemplate<String, String> kafka;
+    private final JsonMapper json;
     private final PedidoRepository repository;
     private final EstoqueLojaRepository estoque;
-    private final ConsumoInsumos consumo;
-    private final JsonMapper json;
+    private final FichaController consumo;
 
-    public ResultadoPagamentoListener(PedidoRepository repository, EstoqueLojaRepository estoque, ConsumoInsumos consumo, JsonMapper json) {
-        this.repository = repository;
-        this.consumo = consumo;
-        this.estoque = estoque;
+    public PagamentosKafka(KafkaTemplate<String, String> kafka, JsonMapper json, PedidoRepository repository,
+                           EstoqueLojaRepository estoque, FichaController consumo) {
+        this.kafka = kafka;
         this.json = json;
+        this.repository = repository;
+        this.estoque = estoque;
+        this.consumo = consumo;
     }
 
-    @KafkaListener(topics = KafkaTopicos.PAGAMENTOS_RESULTADOS)
+    // Cria os dois tópicos do contrato (se ainda não existirem) com 3 partições. static: não precisa instanciar a classe para isso.
+    @Bean
+    static NewTopic pedidosCriados() {
+        return TopicBuilder.name(PEDIDOS_CRIADOS).partitions(3).replicas(1).build();
+    }
+
+    @Bean
+    static NewTopic pagamentosResultados() {
+        return TopicBuilder.name(PAGAMENTOS_RESULTADOS).partitions(3).replicas(1).build();
+    }
+
+    // ---------- saída: pedidos-criados ----------
+
+    public void publicarCriado(Pedido p) throws Exception {
+        var itens = p.getItens().stream().map(i -> new ItemEvento(i.getItem(), i.getQuantidade())).toList();
+        var evento = new PedidoCriado(3, p.getId(), p.getLojaId(), p.getCliente(), itens, p.getValor(),
+                p.getFormaPagamento(), p.getParcelas(), p.getCriadoEm());
+        // Chave = pedidoId: todos os eventos do mesmo pedido caem na mesma partição.
+        // .get() espera o "ok" do broker; se o Kafka estiver fora, a falha aparece aqui.
+        kafka.send(PEDIDOS_CRIADOS, String.valueOf(p.getId()), json.writeValueAsString(evento))
+                .get(5, TimeUnit.SECONDS);
+    }
+
+    // ---------- entrada: pagamentos-resultados ----------
+
+    @KafkaListener(topics = PAGAMENTOS_RESULTADOS)
     @Transactional
     public void receber(String mensagem) {
         var resultado = json.readValue(mensagem, ResultadoPagamento.class);

@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.AuthController.Papeis;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -22,10 +23,10 @@ public class ReenfileirarController {
     private static final int MAX_MINUTOS = 10_080; // 7 dias, o quanto o Kafka guarda
 
     private final PedidoRepository repository;
-    private final PedidoEventos eventos;
-    private final Auditor auditor;
+    private final PagamentosKafka eventos;
+    private final AuditoriaRepository auditor;
 
-    public ReenfileirarController(PedidoRepository repository, PedidoEventos eventos, Auditor auditor) {
+    public ReenfileirarController(PedidoRepository repository, PagamentosKafka eventos, AuditoriaRepository auditor) {
         this.repository = repository;
         this.eventos = eventos;
         this.auditor = auditor;
@@ -34,7 +35,7 @@ public class ReenfileirarController {
     @PostMapping("/pedidos/reenfileirar")
     @Papeis(Papel.ADMIN)
     @Transactional
-    public Resultado reenfileirar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem,
+    public Resultado reenfileirar(@RequestAttribute(AuthController.USUARIO) Usuario quem,
                                   @RequestParam(defaultValue = "10") int minutos) throws Exception {
         if (minutos < 0 || minutos > MAX_MINUTOS) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minutos deve ficar entre 0 e " + MAX_MINUTOS);

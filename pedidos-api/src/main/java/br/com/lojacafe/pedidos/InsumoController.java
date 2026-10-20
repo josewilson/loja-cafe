@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.AuthController.Papeis;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
@@ -21,7 +22,7 @@ public class InsumoController {
                            @DecimalMin("0") @DecimalMax("999999999") @Digits(integer = 9, fraction = 3) BigDecimal minimo) {}
     public record InsumoVista(Long id, String nome, UnidadeInsumo unidade, boolean ativo, BigDecimal quantidade, BigDecimal minimo,
                               boolean abaixoDoMinimo) {
-        static InsumoVista de(InsumoComEstoque i) {
+        static InsumoVista de(EstoqueInsumoRepository.InsumoComEstoque i) {
             return new InsumoVista(i.id(), i.nome(), i.unidade(), i.ativo(), i.quantidade(), i.minimo(), i.quantidade().compareTo(i.minimo()) <= 0);
         }
     }
@@ -33,9 +34,9 @@ public class InsumoController {
     private final InsumoRepository insumos;
     private final EstoqueInsumoRepository estoque;
     private final LojaRepository lojas;
-    private final Auditor auditor;
+    private final AuditoriaRepository auditor;
 
-    public InsumoController(InsumoRepository insumos, EstoqueInsumoRepository estoque, LojaRepository lojas, Auditor auditor) {
+    public InsumoController(InsumoRepository insumos, EstoqueInsumoRepository estoque, LojaRepository lojas, AuditoriaRepository auditor) {
         this.insumos = insumos;
         this.estoque = estoque;
         this.lojas = lojas;
@@ -44,7 +45,7 @@ public class InsumoController {
 
     @GetMapping("/insumos")
     @Papeis({Papel.ADMIN, Papel.GERENTE})
-    public List<InsumoVista> listar(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario, @RequestParam(required = false) Long lojaId) {
+    public List<InsumoVista> listar(@RequestAttribute(AuthController.USUARIO) Usuario usuario, @RequestParam(required = false) Long lojaId) {
         Long loja = CaixaController.lojaObrigatoria(usuario, lojaId);
         return estoque.catalogo(loja).stream().map(InsumoVista::de).toList();
     }
@@ -53,7 +54,7 @@ public class InsumoController {
     @Papeis(Papel.ADMIN)
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    public InsumoBasico criar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @Valid @RequestBody NovoInsumo novo) {
+    public InsumoBasico criar(@RequestAttribute(AuthController.USUARIO) Usuario quem, @Valid @RequestBody NovoInsumo novo) {
         if (insumos.findByNomeIgnoreCase(novo.nome().trim()).isPresent()) {
             throw nomeRepetido();
         }
@@ -69,7 +70,7 @@ public class InsumoController {
     @PutMapping("/insumos/{id}")
     @Papeis(Papel.ADMIN)
     @Transactional
-    public InsumoBasico alterar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @PathVariable Long id, @Valid @RequestBody AlterarInsumo dados) {
+    public InsumoBasico alterar(@RequestAttribute(AuthController.USUARIO) Usuario quem, @PathVariable Long id, @Valid @RequestBody AlterarInsumo dados) {
         Insumo insumo = insumos.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Insumo não existe"));
         insumos.findByNomeIgnoreCase(dados.nome().trim()).filter(outro -> !outro.getId().equals(id)).ifPresent(outro -> {
             throw nomeRepetido();
@@ -95,9 +96,9 @@ public class InsumoController {
     @PutMapping("/lojas/{lojaId}/insumos/{insumoId}")
     @Papeis({Papel.ADMIN, Papel.GERENTE})
     @Transactional
-    public EstoqueInsumoVista contar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @PathVariable Long lojaId,
+    public EstoqueInsumoVista contar(@RequestAttribute(AuthController.USUARIO) Usuario quem, @PathVariable Long lojaId,
                                      @PathVariable Long insumoId, @Valid @RequestBody Contagem corpo) {
-        Autenticacao.escopo(quem, lojaId);
+        AuthController.escopo(quem, lojaId);
         if (!lojas.existsById(lojaId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Loja não existe");
         }
@@ -118,7 +119,7 @@ public class InsumoController {
     /** Insumos ativos com quantidade ≤ mínimo; os que acabaram (≤ 0) primeiro. */
     @GetMapping("/insumos/alertas")
     @Papeis({Papel.ADMIN, Papel.GERENTE})
-    public List<Alerta> alertas(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario, @RequestParam(required = false) Long lojaId) {
+    public List<Alerta> alertas(@RequestAttribute(AuthController.USUARIO) Usuario usuario, @RequestParam(required = false) Long lojaId) {
         Long loja = CaixaController.lojaObrigatoria(usuario, lojaId);
         return estoque.catalogo(loja).stream()
                 .filter(i -> i.ativo() && i.quantidade().compareTo(i.minimo()) <= 0)

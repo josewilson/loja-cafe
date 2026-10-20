@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.AuthController.Papeis;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
@@ -29,11 +30,11 @@ public class LojaController {
     private final LojaRepository lojas;
     private final ProdutoRepository produtos;
     private final EstoqueLojaRepository estoque;
-    private final Auditor auditor;
+    private final AuditoriaRepository auditor;
     private final InsumoRepository insumos;
     private final EstoqueInsumoRepository estoqueInsumos;
 
-    public LojaController(LojaRepository lojas, ProdutoRepository produtos, EstoqueLojaRepository estoque, Auditor auditor,
+    public LojaController(LojaRepository lojas, ProdutoRepository produtos, EstoqueLojaRepository estoque, AuditoriaRepository auditor,
                           InsumoRepository insumos, EstoqueInsumoRepository estoqueInsumos) {
         this.insumos = insumos;
         this.estoqueInsumos = estoqueInsumos;
@@ -53,7 +54,7 @@ public class LojaController {
     @Papeis(Papel.ADMIN)
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    public LojaVista criar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @Valid @RequestBody NovaLoja nova) {
+    public LojaVista criar(@RequestAttribute(AuthController.USUARIO) Usuario quem, @Valid @RequestBody NovaLoja nova) {
         if (lojas.findByNome(nova.nome().trim()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Já existe uma loja com este nome");
         }
@@ -77,7 +78,7 @@ public class LojaController {
     @PutMapping("/lojas/{lojaId}")
     @Papeis(Papel.ADMIN)
     @Transactional
-    public LojaVista alterarFiscal(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @PathVariable Long lojaId,
+    public LojaVista alterarFiscal(@RequestAttribute(AuthController.USUARIO) Usuario quem, @PathVariable Long lojaId,
                                    @Valid @RequestBody DadosFiscais dados) {
         Loja loja = lojas.findById(lojaId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Loja não existe"));
         conferirCnpj(dados.cnpj());
@@ -96,10 +97,10 @@ public class LojaController {
     @PutMapping("/lojas/{lojaId}/estoque/{produtoId}")
     @Papeis({Papel.ADMIN, Papel.GERENTE})
     @Transactional
-    public EstoqueVista ajustarEstoque(@RequestAttribute(Autenticacao.USUARIO) Usuario quem,
+    public EstoqueVista ajustarEstoque(@RequestAttribute(AuthController.USUARIO) Usuario quem,
                                        @PathVariable Long lojaId, @PathVariable Long produtoId,
                                        @Valid @RequestBody NovaQuantidade corpo) {
-        Autenticacao.escopo(quem, lojaId); // gerente só mexe na própria loja
+        AuthController.escopo(quem, lojaId); // gerente só mexe na própria loja
         if (!lojas.existsById(lojaId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Loja não existe");
         }

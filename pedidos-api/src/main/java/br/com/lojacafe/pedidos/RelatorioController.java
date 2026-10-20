@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.AuthController.Papeis;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -33,7 +34,7 @@ public class RelatorioController {
 
     @GetMapping("/vendas")
     @Papeis({Papel.ADMIN, Papel.GERENTE})
-    public Vendas vendas(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario,
+    public Vendas vendas(@RequestAttribute(AuthController.USUARIO) Usuario usuario,
                          @RequestParam(required = false) String data, @RequestParam(required = false) Long lojaId) {
         Long loja = CaixaController.lojaObrigatoria(usuario, lojaId);
         LocalDate dia;

@@ -5,7 +5,7 @@
 //   2. enums (papéis, status, preparo, formas de pagamento, tamanhos, extras, unidades)  ->  citados em specs/api.md
 //   3. evento pedidos-criados (record Java)  <->  exemplo de specs/eventos.md
 //   4. evento pagamentos-resultados (dicionário do Python)  <->  exemplo de specs/eventos.md
-//   5. tópicos do Kafka (KafkaTopicos.java)  <->  specs/eventos.md
+//   5. tópicos do Kafka (PagamentosKafka.java)  <->  specs/eventos.md
 const fs = require("fs");
 const path = require("path");
 
@@ -59,7 +59,7 @@ function chavesDoExemplo(texto, titulo) {
   if (!bloco) return null;
   try { return Object.keys(JSON.parse(bloco[1])).sort(); } catch { return null; }
 }
-const record = ler(JAVA + "PedidoEventos.java").match(/record PedidoCriado\(([\s\S]*?)\) \{\}/);
+const record = ler(JAVA + "PagamentosKafka.java").match(/record PedidoCriado\(([\s\S]*?)\) \{\}/);
 const doRecord = record ? [...record[1].matchAll(/\b\w+(?:<[^>]*>)? (\w+)(?:,|$)/g)].map((m) => m[1]).sort() : null;
 const doExemplo = chavesDoExemplo(eventos, "## Tópico `pedidos-criados`");
 if (!doRecord || !doExemplo) erro("não consegui ler o evento pedidos-criados (record Java ou exemplo da spec)");
@@ -74,7 +74,7 @@ if (!doPython || !resultadoSpec) erro("não consegui ler o evento pagamentos-res
 else if (doPython.join() !== resultadoSpec.join()) erro(`pagamentos-resultados: o código publica [${doPython}] e specs/eventos.md mostra [${resultadoSpec}]`);
 
 // ---------- 5. tópicos ----------
-for (const m of ler(JAVA + "KafkaTopicos.java").matchAll(/String \w+ = "([^"]+)"/g)) {
+for (const m of ler(JAVA + "PagamentosKafka.java").matchAll(/String \w+ = "([^"]+)"/g)) {
   if (!eventos.includes("`" + m[1] + "`")) erro(`tópico ${m[1]} existe no código mas não está em specs/eventos.md`);
 }
 

@@ -1,8 +1,13 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.AuthController.Papeis;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,7 +17,9 @@ import org.springframework.web.server.ResponseStatusException;
 /** Contas da equipe (specs/api.md). Não existe cadastro público: quem cria é o ADMIN ou o GERENTE da loja. */
 @RestController
 @RequestMapping("/usuarios")
-public class UsuarioController {
+public class UsuarioController implements SmartInitializingSingleton {
+
+    private static final Logger log = LoggerFactory.getLogger(UsuarioController.class);
 
     public record NovoUsuario(@NotBlank @Size(max = 60) String nome,
                               @NotBlank @Email @Size(max = 120) String email,
@@ -30,11 +37,16 @@ public class UsuarioController {
     private final UsuarioRepository usuarios;
     private final LojaRepository lojas;
     private final SessaoRepository sessoes;
-    private final Auditor auditor;
+    private final AuditoriaRepository auditor;
     private final BCryptPasswordEncoder bcrypt;
+    private final String adminEmail;
+    private final String adminSenha;
 
-    public UsuarioController(UsuarioRepository usuarios, LojaRepository lojas, SessaoRepository sessoes, Auditor auditor,
-                             BCryptPasswordEncoder bcrypt) {
+    public UsuarioController(UsuarioRepository usuarios, LojaRepository lojas, SessaoRepository sessoes, AuditoriaRepository auditor,
+                             BCryptPasswordEncoder bcrypt, @Value("${lojacafe.admin.email:}") String adminEmail,
+                             @Value("${lojacafe.admin.senha:}") String adminSenha) {
+        this.adminEmail = adminEmail;
+        this.adminSenha = adminSenha;
         this.bcrypt = bcrypt;
         this.usuarios = usuarios;
         this.lojas = lojas;
@@ -42,9 +54,27 @@ public class UsuarioController {
         this.auditor = auditor;
     }
 
+    /**
+     * Primeira partida sem nenhum ADMIN: cria um com ADMIN_EMAIL e ADMIN_PASSWORD (infra/.env). Nunca há senha fixa no código.
+     * Roda quando os beans terminam de nascer, ANTES de o servidor web aceitar a primeira requisição (um ApplicationRunner
+     * rodaria depois: dava uma janela em que a API já respondia, mas o ADMIN ainda não existia).
+     */
+    @Override
+    public void afterSingletonsInstantiated() {
+        if (usuarios.existsByPapel(Papel.ADMIN)) {
+            return;
+        }
+        if (adminEmail.isBlank() || adminSenha.length() < 8) {
+            log.warn("Nenhum ADMIN cadastrado. Defina ADMIN_EMAIL e ADMIN_PASSWORD (mínimo 8 caracteres) em infra/.env e reinicie.");
+            return;
+        }
+        usuarios.save(new Usuario("Administrador", adminEmail, bcrypt.encode(adminSenha), Papel.ADMIN, null));
+        log.info("ADMIN inicial criado: {}", adminEmail.trim().toLowerCase());
+    }
+
     @GetMapping
     @Papeis({Papel.ADMIN, Papel.GERENTE})
-    public List<UsuarioVista> listar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem) {
+    public List<UsuarioVista> listar(@RequestAttribute(AuthController.USUARIO) Usuario quem) {
         var lista = quem.getPapel() == Papel.ADMIN ? usuarios.findAllByOrderByIdAsc() : usuarios.findByLoja_IdOrderByIdAsc(quem.getLojaId());
         return lista.stream().map(UsuarioVista::de).toList();
     }
@@ -53,14 +83,14 @@ public class UsuarioController {
     @Papeis({Papel.ADMIN, Papel.GERENTE})
     @ResponseStatus(HttpStatus.CREATED)
     @Transactional
-    public UsuarioVista criar(@RequestAttribute(Autenticacao.USUARIO) Usuario quem, @Valid @RequestBody NovoUsuario novo) {
+    public UsuarioVista criar(@RequestAttribute(AuthController.USUARIO) Usuario quem, @Valid @RequestBody NovoUsuario novo) {
         Loja loja = null;
         if (quem.getPapel() == Papel.GERENTE) {
             // Gerente só cria atendente e cozinha, e só na própria loja.
             if (novo.papel() != Papel.ATENDENTE && novo.papel() != Papel.COZINHA) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Gerente só cria ATENDENTE e COZINHA");
             }
-            Autenticacao.escopo(quem, novo.lojaId());
+            AuthController.escopo(quem, novo.lojaId());
             loja = quem.getLoja();
         } else if (novo.papel() != Papel.ADMIN) {
             if (novo.lojaId() == null) {
@@ -82,7 +112,7 @@ public class UsuarioController {
     @PutMapping("/{id}/ativo")
     @Papeis({Papel.ADMIN, Papel.GERENTE})
     @Transactional
-    public UsuarioVista definirAtivo(@RequestAttribute(Autenticacao.USUARIO) Usuario quem,
+    public UsuarioVista definirAtivo(@RequestAttribute(AuthController.USUARIO) Usuario quem,
                                      @PathVariable Long id, @RequestBody Ativo corpo) {
         Usuario alvo = usuarios.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não existe"));

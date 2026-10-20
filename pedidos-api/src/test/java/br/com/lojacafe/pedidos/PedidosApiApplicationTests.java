@@ -41,11 +41,16 @@ class PedidosApiApplicationTests {
     @Autowired
     MockMvc mvc;
     @Autowired
-    ResultadoPagamentoListener listener;
+    PagamentosKafka listener;
 
     // O envio ao Kafka é só um "ok" aqui: não existe broker nos testes.
-    @MockitoBean
-    PedidoEventos eventos;
+    @MockitoSpyBean
+    PagamentosKafka eventos;
+
+    @org.junit.jupiter.api.BeforeEach
+    void semKafka() throws Exception {
+        org.mockito.Mockito.doNothing().when(eventos).publicarCriado(org.mockito.ArgumentMatchers.any());
+    }
 
     // ---------- ajudantes ----------
 
@@ -1528,7 +1533,7 @@ class PedidosApiApplicationTests {
     // ---------- saúde da API (monitoramento e Docker) ----------
 
     @MockitoSpyBean
-    Saude saude;
+    SaudeController saude;
 
     @Test
     void saudeEPublicaEComTudoVivoDa200() throws Exception {

@@ -27,9 +27,9 @@ public class CardapioController {
 
     /** Cardápio da rede com o estoque da loja do usuário. O ADMIN (sem loja) escolhe com ?lojaId=. */
     @GetMapping("/produtos")
-    public List<ProdutoComEstoque> produtos(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario,
+    public List<ProdutoRepository.ProdutoComEstoque> produtos(@RequestAttribute(AuthController.USUARIO) Usuario usuario,
                                             @RequestParam(required = false) Long lojaId) {
-        Long loja = Autenticacao.escopo(usuario, lojaId);
+        Long loja = AuthController.escopo(usuario, lojaId);
         if (loja == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe lojaId");
         }

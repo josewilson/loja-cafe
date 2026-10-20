@@ -8,4 +8,13 @@ public interface AuditoriaRepository extends JpaRepository<Auditoria, Long> {
     List<Auditoria> findAllByOrderByIdDesc(Pageable limite);
 
     List<Auditoria> findByLojaIdOrderByIdDesc(Long lojaId, Pageable limite);
+
+    /**
+     * Anota na auditoria o que aconteceu. Roda na mesma transação da ação: se ela desfaz, o registro some junto.
+     * `quem` pode ser nulo (ex.: login de um e-mail que não existe).
+     */
+    default void registrar(Usuario quem, Long lojaId, String acao, String entidade, Object entidadeId, String detalhe) {
+        save(new Auditoria(quem == null ? null : quem.getId(), lojaId, acao, entidade,
+                entidadeId == null ? null : String.valueOf(entidadeId), detalhe));
+    }
 }

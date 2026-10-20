@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos;
 
+import br.com.lojacafe.pedidos.AuthController.Papeis;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,10 +21,10 @@ public class CozinhaController {
 
     private final PedidoRepository repository;
     private final EstoqueLojaRepository estoque;
-    private final Auditor auditor;
-    private final ConsumoInsumos consumo;
+    private final AuditoriaRepository auditor;
+    private final FichaController consumo;
 
-    public CozinhaController(PedidoRepository repository, EstoqueLojaRepository estoque, Auditor auditor, ConsumoInsumos consumo) {
+    public CozinhaController(PedidoRepository repository, EstoqueLojaRepository estoque, AuditoriaRepository auditor, FichaController consumo) {
         this.consumo = consumo;
         this.repository = repository;
         this.estoque = estoque;
@@ -32,10 +33,10 @@ public class CozinhaController {
 
     /** A fila da loja: só pedidos PAGO ainda não retirados nem cancelados, do mais antigo ao mais novo. */
     @GetMapping("/cozinha")
-    public List<Pedido> fila(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario,
+    public List<Pedido> fila(@RequestAttribute(AuthController.USUARIO) Usuario usuario,
                              @RequestParam(defaultValue = "100") int limite,
                              @RequestParam(required = false) Long lojaId) {
-        Long loja = Autenticacao.escopo(usuario, lojaId);
+        Long loja = AuthController.escopo(usuario, lojaId);
         if (loja == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Informe lojaId");
         }
@@ -46,7 +47,7 @@ public class CozinhaController {
     @PutMapping("/pedidos/{id}/preparo")
     @Papeis({Papel.COZINHA, Papel.GERENTE, Papel.ATENDENTE})
     @Transactional
-    public Pedido mudarPreparo(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario,
+    public Pedido mudarPreparo(@RequestAttribute(AuthController.USUARIO) Usuario usuario,
                                @PathVariable Long id, @Valid @RequestBody NovoPreparo corpo) {
         Preparo novo = corpo.preparo();
         // Quem pode dar cada passo: a cozinha prepara; o balcão entrega; o gerente faz os dois.
@@ -73,7 +74,7 @@ public class CozinhaController {
     @PutMapping("/pedidos/{id}/cancelar")
     @Papeis(Papel.GERENTE)
     @Transactional
-    public Pedido cancelar(@RequestAttribute(Autenticacao.USUARIO) Usuario usuario, @PathVariable Long id,
+    public Pedido cancelar(@RequestAttribute(AuthController.USUARIO) Usuario usuario, @PathVariable Long id,
                            @Valid @RequestBody(required = false) Cancelamento corpo) {
         Pedido pedido = carregar(usuario, id);
         Preparo antes = pedido.getPreparo();
@@ -95,7 +96,7 @@ public class CozinhaController {
     private Pedido carregar(Usuario usuario, Long id) {
         Pedido pedido = repository.findWithLockById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não existe"));
-        Autenticacao.escopo(usuario, pedido.getLojaId());
+        AuthController.escopo(usuario, pedido.getLojaId());
         return pedido;
     }
 }
