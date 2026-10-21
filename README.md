@@ -226,6 +226,7 @@ Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plan
 | 7a. Cartão na maquininha | `CARTAO_MODO=maquininha`: o atendente confirma na tela o que a maquininha respondeu (aprovado/recusado, NSU opcional) via `PUT /pedidos/{id}/pagamento` | feita |
 | 7b. Estorno | O gerente registra a devolução do dinheiro de pedido pago e cancelado (`PUT /pedidos/{id}/estorno`, auditoria `PAGAMENTO_ESTORNADO`); o sistema não move dinheiro | feita (Pix automático pela API do provedor fica para depois) |
 | 7c. Estorno automático do Pix | Cancelar pedido Pix pago pede a devolução ao provedor (tópico `pagamentos-estornos`; Mercado Pago ou `simulado`) e marca `estornadoEm` sozinho; sem provedor ou se falhar, o gerente registra à mão | feita, falta exercitar com a conta Mercado Pago |
+| 7d. Estornos no painel | O relatório de vendas e a aba "Gerência" mostram estornos do dia e os pendentes (pedidos pagos e cancelados com dinheiro a devolver) | feita |
 
 ## Cuidados
 

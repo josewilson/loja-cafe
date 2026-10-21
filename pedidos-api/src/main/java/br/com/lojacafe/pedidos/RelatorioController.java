@@ -21,7 +21,7 @@ public class RelatorioController {
     public record ItemVendido(String item, long quantidade, BigDecimal total) {}
     public record Vendas(LocalDate data, Long lojaId, long pedidos, BigDecimal total, BigDecimal ticketMedio,
                          List<CaixaController.FormaTotal> porForma, List<ItemVendido> maisVendidos,
-                         long recusados, long cancelados, long aguardando) {}
+                         long recusados, long cancelados, long aguardando, long estornados, long estornosPendentes) {}
 
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
     private static final int TOP = 5;
@@ -56,6 +56,8 @@ public class RelatorioController {
         return new Vendas(dia, loja, vendidos, total, ticket, formas, top,
                 pedidos.countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndStatus(loja, de, ate, StatusPedido.RECUSADO),
                 pedidos.countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndPreparo(loja, de, ate, Preparo.CANCELADO),
-                pedidos.countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndStatus(loja, de, ate, StatusPedido.AGUARDANDO_PAGAMENTO));
+                pedidos.countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndStatus(loja, de, ate, StatusPedido.AGUARDANDO_PAGAMENTO),
+                pedidos.countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndEstornadoEmIsNotNull(loja, de, ate),
+                pedidos.countByLojaIdAndStatusAndPreparoAndEstornadoEmIsNull(loja, StatusPedido.PAGO, Preparo.CANCELADO));
     }
 }

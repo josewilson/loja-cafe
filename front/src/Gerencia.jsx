@@ -69,6 +69,10 @@ function Vendas({ aoSair }) {
             </div>
           </div>
           <p className="nota">Não entram na soma: {v.recusados} recusado(s), {v.cancelados} cancelado(s), {v.aguardando} aguardando pagamento.</p>
+          {v.estornados > 0 && <p className="nota">{v.estornados} estorno(s) feito(s) neste dia.</p>}
+          {v.estornosPendentes > 0 && (
+            <p className="nota aviso">{v.estornosPendentes} pedido(s) cancelado(s) depois de pagos ainda esperam a devolução do dinheiro (aba Balcão, "Registrar estorno").</p>
+          )}
         </>
       )}
     </section>

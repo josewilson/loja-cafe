@@ -284,9 +284,11 @@ O `ADMIN` informa `?lojaId=`. Data inválida: `400`. Resposta `200`:
 { "data": "2026-10-17", "lojaId": 1, "pedidos": 12, "total": 340.50, "ticketMedio": 28.38,
   "porForma": [ { "forma": "PIX", "pedidos": 7, "total": 210.00 } ],
   "maisVendidos": [ { "item": "Cappuccino", "quantidade": 15, "total": 225.00 } ],
-  "recusados": 1, "cancelados": 2, "aguardando": 0 }
+  "recusados": 1, "cancelados": 2, "aguardando": 0, "estornados": 1, "estornosPendentes": 0 }
 ```
 `maisVendidos` traz até 5 itens, do que mais saiu para o que menos saiu. `ticketMedio` é `0` sem vendas.
+Fase 7d: `estornados` = pedidos do dia com o dinheiro já devolvido. `estornosPendentes` = pedidos da loja **de qualquer dia** que foram pagos, cancelados
+e ainda não estornados (dinheiro a devolver: `PUT /pedidos/{id}/estorno`).
 
 ### Fechamento de caixa (por turno)
 O caixa é fechado quando o turno acaba. Cada pedido vendido entra em **um único** fechamento (o primeiro depois que foi pago),

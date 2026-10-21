@@ -1098,7 +1098,8 @@ class PedidosApiApplicationTests {
         pagoComo(gerente, "DINHEIRO", 2, 3); // 36,00
         lancar(gerente, 1, 1); // aguardando
         resultado(lancar(gerente, 1, 1), "RECUSADO");
-        PUT(gerente, "/pedidos/" + pagoComo(gerente, "PIX", 3, 1) + "/cancelar", "{}").andExpect(status().isOk());
+        long cancelado = pagoComo(gerente, "PIX", 3, 1);
+        PUT(gerente, "/pedidos/" + cancelado + "/cancelar", "{}").andExpect(status().isOk());
 
         GET(gerente, "/relatorios/vendas").andExpect(status().isOk())
                 .andExpect(jsonPath("$.lojaId").value(loja))
@@ -1111,7 +1112,11 @@ class PedidosApiApplicationTests {
                 .andExpect(jsonPath("$.maisVendidos[0].total").value(36.0))
                 .andExpect(jsonPath("$.recusados").value(1))
                 .andExpect(jsonPath("$.cancelados").value(1))
-                .andExpect(jsonPath("$.aguardando").value(1));
+                .andExpect(jsonPath("$.aguardando").value(1))
+                .andExpect(jsonPath("$.estornados").value(0))
+                .andExpect(jsonPath("$.estornosPendentes").value(1));  // cancelado depois de pago e ainda não devolvido
+        resultado(cancelado, "ESTORNADO");
+        GET(gerente, "/relatorios/vendas").andExpect(jsonPath("$.estornados").value(1)).andExpect(jsonPath("$.estornosPendentes").value(0));
     }
 
     @Test

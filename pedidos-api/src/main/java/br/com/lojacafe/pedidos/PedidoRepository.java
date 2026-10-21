@@ -54,6 +54,11 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 
     long countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndStatus(Long lojaId, Instant de, Instant ate, StatusPedido status);
 
+    long countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndEstornadoEmIsNotNull(Long lojaId, Instant de, Instant ate);
+
+    /** Pedidos pagos e cancelados cujo dinheiro ainda não foi devolvido (de qualquer dia: é dívida com o cliente). */
+    long countByLojaIdAndStatusAndPreparoAndEstornadoEmIsNull(Long lojaId, StatusPedido status, Preparo preparo);
+
     long countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndPreparo(Long lojaId, Instant de, Instant ate, Preparo preparo);
 
     /**
