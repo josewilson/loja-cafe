@@ -389,7 +389,6 @@ function Insumos({ sessao, aoSair }) {
   )
 }
 
-// Painel do gerente: vendas do dia, caixa por turno, equipe e estoque da loja dele.
 // Quem fez o quê e quando (GET /auditoria): os últimos 200 registros, com filtro por ação.
 function Auditoria({ aoSair }) {
   const buscar = useCallback(() => listarAuditoria(200), [])
@@ -427,6 +426,7 @@ function Auditoria({ aoSair }) {
   )
 }
 
+// Painel do gerente: vendas do dia, caixa por turno, equipe e estoque da loja dele.
 export default function Gerencia({ sessao, aoSair, topo }) {
   const [secao, setSecao] = useState('vendas')
   const alertas = useDados(alertasInsumos, aoSair) // só para mostrar quantos insumos estão acabando na aba
