@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import {
   ajustarEstoque, alertasInsumos, caixaResumo, contarInsumo, listarInsumos, criarUsuario, definirAtivo, fecharCaixa, listarFechamentos,
-  baixarVendasCsv, listarProdutos, listarUsuarios, relatorioVendas,
+  baixarVendasCsv, gerarLinkSenha, listarProdutos, listarUsuarios, relatorioVendas,
 } from './api'
 import Topo from './Topo'
 import Erro from './Erro'
@@ -185,6 +185,7 @@ function Equipe({ aoSair }) {
   const { dados, erro, recarregar, setErro } = useDados(listarUsuarios, aoSair)
   const [form, setForm] = useState({ nome: '', email: '', senha: '', papel: 'ATENDENTE' })
   const [ocupado, setOcupado] = useState(false)
+  const [link, setLink] = useState(null) // { nome, endereco } do último link de nova senha
 
   async function agir(acao) {
     setOcupado(true)
@@ -219,13 +220,30 @@ function Equipe({ aoSair }) {
               <span><strong>{u.nome}</strong> <small>{u.email}</small></span>
               <span className="tag">{u.papel}</span>
               {u.papel !== 'GERENTE' && (
-                <button type="button" className="link" disabled={ocupado} onClick={() => agir(() => definirAtivo(u.id, !u.ativo))}>
-                  {u.ativo ? 'Desativar' : 'Reativar'}
-                </button>
+                <>
+                  <button type="button" className="link" disabled={ocupado} onClick={() => agir(() => definirAtivo(u.id, !u.ativo))}>
+                    {u.ativo ? 'Desativar' : 'Reativar'}
+                  </button>
+                  {u.ativo && (
+                    <button type="button" className="link" disabled={ocupado}
+                      onClick={() => agir(async () => {
+                        const { token } = await gerarLinkSenha(u.id)
+                        setLink({ nome: u.nome, endereco: `${window.location.origin}${window.location.pathname}?redefinir=${token}` })
+                      })}>
+                      Nova senha
+                    </button>
+                  )}
+                </>
               )}
             </li>
           ))}
         </ul>
+      )}
+      {link && (
+        <p className="nota">
+          Link de nova senha de {link.nome} (vale 1 hora, uma vez). Entregue só a essa pessoa:
+          <input readOnly value={link.endereco} onFocus={(e) => e.target.select()} aria-label="Link de nova senha" />
+        </p>
       )}
       <h3>Nova conta</h3>
       <form className="nova-conta" onSubmit={criar}>

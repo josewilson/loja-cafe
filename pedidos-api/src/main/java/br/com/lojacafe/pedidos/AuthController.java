@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -75,7 +76,7 @@ public class AuthController implements HandlerInterceptor, WebMvcConfigurer {
     private final SessaoRepository sessoes;
     private final AuditoriaRepository auditor;
     private final BCryptPasswordEncoder bcrypt;
-    private final SecureRandom aleatorio = new SecureRandom();
+    private static final SecureRandom ALEATORIO = new SecureRandom();
     // Hash de uma senha qualquer: e-mail inexistente gasta o mesmo tempo que senha errada.
     private final String hashFalso;
     // ponytail: o contador de tentativas fica na memória desta instância; com várias instâncias da API, trocar por contador compartilhado (Redis/banco).
@@ -114,6 +115,28 @@ public class AuthController implements HandlerInterceptor, WebMvcConfigurer {
         return abrirSessao(usuario);
     }
 
+    public record NovaSenha(@NotBlank String token, @NotBlank @Size(min = 8, max = 72) String senha) {}
+
+    /** Fase 8b: usa o link gerado pelo gerente. O token vale uma vez; a senha nova derruba as sessões abertas da conta. */
+    @PostMapping("/redefinir-senha")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional(noRollbackFor = ResponseStatusException.class)
+    public void redefinirSenha(@Valid @RequestBody NovaSenha corpo, HttpServletRequest req) {
+        String chave = "redefinir:" + req.getRemoteAddr();
+        if (estourou(chave, MAX_FALHAS, JANELA_FALHAS)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Muitas tentativas. Aguarde alguns minutos e tente de novo");
+        }
+        Usuario usuario = usuarios.findByRedefinicaoHash(hash(corpo.token())).filter(Usuario::redefinicaoValida).orElse(null);
+        if (usuario == null || !usuario.isAtivo()) {
+            registrarFalha(chave);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Link inválido ou vencido. Peça um novo ao gerente");
+        }
+        usuario.redefinirSenha(bcrypt.encode(corpo.senha()));
+        usuarios.save(usuario);
+        sessoes.apagarDoUsuario(usuario.getId());
+        auditor.registrar(usuario, usuario.getLojaId(), "SENHA_REDEFINIDA", "Usuario", usuario.getId(), null);
+    }
+
     @PostMapping("/sair")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void sair(@RequestAttribute(TOKEN) String tokenHash) {
@@ -121,15 +144,20 @@ public class AuthController implements HandlerInterceptor, WebMvcConfigurer {
     }
 
     private Token abrirSessao(Usuario usuario) {
-        byte[] bytes = new byte[32];
-        aleatorio.nextBytes(bytes);
-        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        String token = tokenAleatorio();
         sessoes.save(new Sessao(hash(token), usuario, Instant.now().plus(VALIDADE)));
         Loja loja = usuario.getLoja();
         return new Token(token, usuario.getNome(), usuario.getPapel(), usuario.getLojaId(), loja == null ? null : loja.getNome());
     }
 
     // ---------- ajudas que os outros controllers usam ----------
+
+    /** Token de 256 bits (sessão e link de nova senha). */
+    public static String tokenAleatorio() {
+        byte[] bytes = new byte[32];
+        ALEATORIO.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
 
     /** O banco guarda só o hash do token. */
     public static String hash(String token) {
@@ -194,7 +222,7 @@ public class AuthController implements HandlerInterceptor, WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // Tudo exige login, menos o próprio login, as opções (tamanhos/extras/pagamentos), a saúde da API e a página de erro.
-        registry.addInterceptor(this).addPathPatterns("/**").excludePathPatterns("/auth/entrar", "/opcoes", "/saude", "/error");
+        registry.addInterceptor(this).addPathPatterns("/**").excludePathPatterns("/auth/entrar", "/auth/redefinir-senha", "/opcoes", "/saude", "/error");
         registry.addInterceptor(new HandlerInterceptor() {
             @Override
             public boolean preHandle(HttpServletRequest req, HttpServletResponse res, Object handler) {

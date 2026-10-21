@@ -1,6 +1,7 @@
 package br.com.lojacafe.pedidos;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 
 /** Conta de um funcionário. Só guarda o hash BCrypt da senha, nunca a senha. */
 @Entity
@@ -19,6 +20,9 @@ public class Usuario {
     @ManyToOne(fetch = FetchType.EAGER)
     private Loja loja;
     private boolean ativo = true;
+    // Fase 8b: hash do token de "nova senha" (uso único) e até quando vale.
+    private String redefinicaoHash;
+    private Instant redefinicaoExpiraEm;
 
     protected Usuario() {
         // exigido pelo JPA
@@ -41,4 +45,19 @@ public class Usuario {
     public Long getLojaId() { return loja == null ? null : loja.getId(); }
     public boolean isAtivo() { return ativo; }
     public void setAtivo(boolean ativo) { this.ativo = ativo; }
+
+    /** Guarda um novo token de redefinição (o anterior deixa de valer). */
+    public void permitirRedefinicao(String tokenHash, Instant expiraEm) {
+        this.redefinicaoHash = tokenHash;
+        this.redefinicaoExpiraEm = expiraEm;
+    }
+
+    public boolean redefinicaoValida() { return redefinicaoHash != null && redefinicaoExpiraEm.isAfter(Instant.now()); }
+
+    /** Troca a senha e gasta o token. */
+    public void redefinirSenha(String novoHash) {
+        this.senhaHash = novoHash;
+        this.redefinicaoHash = null;
+        this.redefinicaoExpiraEm = null;
+    }
 }

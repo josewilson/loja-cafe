@@ -1219,6 +1219,48 @@ class PedidosApiApplicationTests {
         GET(token(Papel.ATENDENTE, loja), "/relatorios/vendas.csv").andExpect(status().isForbidden());
     }
 
+    @Test
+    void gerenteGeraLinkDeNovaSenhaQueVale1VezEDerrubaASessao() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String email = UUID.randomUUID() + "@exemplo.com";
+        long id = Long.parseLong(texto(POST(gerente, "/usuarios", "{\"nome\":\"Bia\",\"email\":\"" + email + "\",\"senha\":\"" + SENHA
+                + "\",\"papel\":\"ATENDENTE\"}").andExpect(status().isCreated()), "$.id"));
+        String sessaoAntiga = tokenDe(email, SENHA);
+
+        String link = texto(POST(gerente, "/usuarios/" + id + "/redefinicao", "{}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.expiraEm").exists()), "$.token");
+        POST(null, "/auth/redefinir-senha", "{\"token\":\"" + link + "\",\"senha\":\"novasenha123\"}").andExpect(status().isNoContent());
+
+        entrar(email, SENHA).andExpect(status().isUnauthorized());           // a senha velha não vale mais
+        tokenDe(email, "novasenha123");                                       // a nova vale
+        GET(sessaoAntiga, "/produtos").andExpect(status().isUnauthorized());  // sessão aberta caiu
+        POST(null, "/auth/redefinir-senha", "{\"token\":\"" + link + "\",\"senha\":\"outrasenha123\"}").andExpect(status().isBadRequest()); // uso único
+    }
+
+    @Test
+    void linkDeNovaSenhaTemRegras() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String atendente = token(Papel.ATENDENTE, loja);
+        String email = UUID.randomUUID() + "@exemplo.com";
+        long id = Long.parseLong(texto(POST(gerente, "/usuarios", "{\"nome\":\"Bia\",\"email\":\"" + email + "\",\"senha\":\"" + SENHA
+                + "\",\"papel\":\"ATENDENTE\"}").andExpect(status().isCreated()), "$.id"));
+
+        POST(atendente, "/usuarios/" + id + "/redefinicao", "{}").andExpect(status().isForbidden());           // só ADMIN e GERENTE
+        POST(token(Papel.GERENTE, novaLoja()), "/usuarios/" + id + "/redefinicao", "{}").andExpect(status().isForbidden()); // outra loja
+        POST(gerente, "/usuarios/999999/redefinicao", "{}").andExpect(status().isNotFound());
+
+        String primeiro = texto(POST(gerente, "/usuarios/" + id + "/redefinicao", "{}").andExpect(status().isOk()), "$.token");
+        String segundo = texto(POST(admin(), "/usuarios/" + id + "/redefinicao", "{}").andExpect(status().isOk()), "$.token");
+        POST(null, "/auth/redefinir-senha", "{\"token\":\"" + primeiro + "\",\"senha\":\"novasenha123\"}").andExpect(status().isBadRequest()); // gerar de novo invalida o anterior
+        POST(null, "/auth/redefinir-senha", "{\"token\":\"" + segundo + "\",\"senha\":\"curta\"}").andExpect(status().isBadRequest());           // senha de 8 a 72
+        POST(null, "/auth/redefinir-senha", "{\"token\":\"" + segundo + "\",\"senha\":\"novasenha123\"}").andExpect(status().isNoContent());
+
+        PUT(gerente, "/usuarios/" + id + "/ativo", "{\"ativo\":false}").andExpect(status().isOk());
+        POST(gerente, "/usuarios/" + id + "/redefinicao", "{}").andExpect(status().isBadRequest());             // conta desativada
+    }
+
     // ---------- cardápio da rede (ADMIN) ----------
 
     /** Cria um produto novo (nome único) e devolve o id. */

@@ -1,8 +1,43 @@
 import { useState } from 'react'
-import { entrar } from './api'
+import { entrar, redefinirSenha } from './api'
 
 // Tela de login da equipe. Não há cadastro: as contas são criadas pelo gerente ou pelo administrador.
+// Link de nova senha (?redefinir=...), gerado pelo gerente: o funcionário só escolhe a senha.
+function NovaSenha({ token, aoTerminar }) {
+  const [senha, setSenha] = useState('')
+  const [erro, setErro] = useState(null)
+
+  async function enviar(e) {
+    e.preventDefault()
+    try {
+      await redefinirSenha(token, senha)
+      aoTerminar()
+    } catch (falha) {
+      setErro(falha)
+    }
+  }
+
+  return (
+    <main className="entrar">
+      <form className="cartao" onSubmit={enviar}>
+        <h1>Nova senha</h1>
+        <label className="campo">
+          <span>Senha <small>(8 a 72)</small></span>
+          <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required minLength={8} maxLength={72} autoComplete="new-password" />
+        </label>
+        {erro && (
+          <div className="faixa-erro" role="alert">
+            <ul>{erro.mensagens.map((m) => <li key={m}>{m}</li>)}</ul>
+          </div>
+        )}
+        <button type="submit" className="botao">Salvar senha</button>
+      </form>
+    </main>
+  )
+}
+
 export default function Entrar({ aoEntrar }) {
+  const [token, setToken] = useState(() => new URLSearchParams(window.location.search).get('redefinir'))
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [enviando, setEnviando] = useState(false)
@@ -18,6 +53,10 @@ export default function Entrar({ aoEntrar }) {
       setErro(falha)
       setEnviando(false)
     }
+  }
+
+  if (token) {
+    return <NovaSenha token={token} aoTerminar={() => { window.history.replaceState(null, '', window.location.pathname); setToken(null) }} />
   }
 
   return (

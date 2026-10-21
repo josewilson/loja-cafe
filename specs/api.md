@@ -65,6 +65,11 @@ Corpo: `{ "email": "ana@exemplo.com", "senha": "segredo123" }`. `200`:
 ```
 (`lojaId` e `lojaNome` são `null` para o `ADMIN`.) E-mail ou senha errados: `401`, sem dizer qual dos dois.
 
+### POST /auth/redefinir-senha
+Fase 8b. Sem login: usa o link gerado por `POST /usuarios/{id}/redefinicao`. Corpo: `{ "token": "...", "senha": "novasenha123" }` (senha de 8 a 72).
+`204`: a senha mudou, o link foi gasto e as sessões abertas da conta caíram. Token inválido, já usado ou vencido: `400`.
+Após 5 tentativas erradas em 15 min (mesmo IP): `429`.
+
 ### POST /auth/sair
 Exige token. Encerra a sessão. `204`.
 
@@ -90,6 +95,14 @@ todos opcionais e `null` até alguém informar: `razaoSocial` (até 120), `cnpj`
 Corpo: `{ "ativo": false }`. Desativar encerra as sessões da pessoa. O `GERENTE` só mexe em `ATENDENTE`/`COZINHA` da própria loja.
 Ninguém desativa a si mesmo. `200` com o usuário.
 
+### POST /usuarios/{id}/redefinicao  (`ADMIN`, `GERENTE`)
+Fase 8b. Gera o link para a pessoa definir uma nova senha (não há e-mail: quem gera entrega o link). Sem corpo. `200`:
+```json
+{ "token": "...", "expiraEm": "2026-10-21T17:00:00Z" }
+```
+Vale 1 hora e uma vez; gerar de novo invalida o anterior. O `GERENTE` só mexe em `ATENDENTE`/`COZINHA` da própria loja (como em `/ativo`). Conta desativada: `400`.
+O front monta o endereço `/?redefinir=<token>`.
+
 ### PUT /lojas/{lojaId}/estoque/{produtoId}  (`ADMIN`, `GERENTE` da loja)
 Corpo: `{ "quantidade": 40 }` (de 0 a 100000). Define o estoque do produto naquela loja. `200` com `{ "lojaId", "produtoId", "quantidade" }`.
 
@@ -101,7 +114,7 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
 `PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`, `INSUMO_CRIADO`, `INSUMO_ALTERADO`, `FICHA_ALTERADA`, `INSUMO_AJUSTADO`
-(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6), `RECIBO_EMITIDO` (Fase 6), `PAGAMENTO_CONFIRMADO` e `PAGAMENTO_RECUSADO` (Fase 7a), `PAGAMENTO_ESTORNADO` (Fase 7b), `NFCE_EMITIDA`, `NFCE_REJEITADA` e `NFCE_CANCELADA` (Fase 6b).
+(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6), `RECIBO_EMITIDO` (Fase 6), `PAGAMENTO_CONFIRMADO` e `PAGAMENTO_RECUSADO` (Fase 7a), `PAGAMENTO_ESTORNADO` (Fase 7b), `NFCE_EMITIDA`, `NFCE_REJEITADA` e `NFCE_CANCELADA` (Fase 6b), `SENHA_REDEFINICAO_GERADA` e `SENHA_REDEFINIDA` (Fase 8b).
 
 ## Cardápio e pedidos (exigem token)
 

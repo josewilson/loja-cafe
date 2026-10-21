@@ -164,7 +164,7 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 138 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
+cd pedidos-api   && ./mvnw test                 # 140 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
 cd pagamentos-py && python -m unittest -v       # 31 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
 cd front         && npm run lint                # oxlint
 node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
@@ -204,7 +204,7 @@ O projeto foi construído em atos; cada branch guarda um marco:
 
 ## Limitações
 
-Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física, com retirada no balcão. O login é por e-mail e senha (BCrypt, token de 24 h no banco, limite de tentativas), sem recuperação de senha por e-mail e sem autenticação em dois fatores.
+Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física, com retirada no balcão. O login é por e-mail e senha (BCrypt, token de 24 h no banco, limite de tentativas), sem envio de e-mail (a senha esquecida é refeita por um link que o gerente gera) e sem autenticação em dois fatores.
 O Postgres e o Kafka exigem senha (`infra/.env`) e só aceitam conexões locais (`127.0.0.1`); o painel do Kafka não tem login próprio. O Kafka usa SASL/PLAIN sem TLS, adequado a rede local ou privada, não à internet.
 Ainda não existem a hospedagem de verdade, a nota fiscal real (só simulada) nem o pagamento real: veja o plano em fases abaixo.
 
@@ -229,6 +229,7 @@ Ainda não existem a hospedagem de verdade, a nota fiscal real (só simulada) ne
 | 7c. Estorno automático do Pix | Cancelar pedido Pix pago pede a devolução ao provedor (tópico `pagamentos-estornos`; Mercado Pago ou `simulado`) e marca `estornadoEm` sozinho; sem provedor ou se falhar, o gerente registra à mão | feita, falta exercitar com a conta Mercado Pago |
 | 7d. Estornos no painel | O relatório de vendas e a aba "Gerência" mostram estornos do dia e os pendentes (pedidos pagos e cancelados com dinheiro a devolver) | feita |
 | 8a. Vendas por período e CSV | `GET /relatorios/vendas?data=&ate=` soma um período (até 366 dias) e `GET /relatorios/vendas.csv` baixa as vendas, uma por linha (`;` e vírgula decimal, abre no Excel), para o contador; na Gerência, "De/Até" e "Baixar CSV" | feita |
+| 8b. Nova senha por link | O gerente (ou ADMIN) gera um link de uso único, válido por 1 hora (`POST /usuarios/{id}/redefinicao`), e entrega à pessoa; ela abre `/?redefinir=...` e escolhe a senha (`POST /auth/redefinir-senha`). Sem e-mail: nada a contratar; as sessões abertas da conta caem | feita |
 
 ## Cuidados
 

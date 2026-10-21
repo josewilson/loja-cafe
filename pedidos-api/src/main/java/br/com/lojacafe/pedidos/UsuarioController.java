@@ -3,6 +3,8 @@ package br.com.lojacafe.pedidos;
 import br.com.lojacafe.pedidos.AuthController.Papeis;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class UsuarioController implements SmartInitializingSingleton {
 
     private static final Logger log = LoggerFactory.getLogger(UsuarioController.class);
+    private static final Duration VALIDADE_LINK = Duration.ofHours(1);
 
     public record NovoUsuario(@NotBlank @Size(max = 60) String nome,
                               @NotBlank @Email @Size(max = 120) String email,
@@ -27,6 +30,7 @@ public class UsuarioController implements SmartInitializingSingleton {
                               @NotNull Papel papel,
                               Long lojaId) {}
     public record Ativo(boolean ativo) {}
+    public record Redefinicao(String token, Instant expiraEm) {}
     /** A vista pública de um usuário: nunca inclui a senha nem o hash. */
     public record UsuarioVista(Long id, String nome, String email, Papel papel, Long lojaId, boolean ativo) {
         static UsuarioVista de(Usuario u) {
@@ -114,15 +118,7 @@ public class UsuarioController implements SmartInitializingSingleton {
     @Transactional
     public UsuarioVista definirAtivo(@RequestAttribute(AuthController.USUARIO) Usuario quem,
                                      @PathVariable Long id, @RequestBody Ativo corpo) {
-        Usuario alvo = usuarios.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não existe"));
-        if (quem.getPapel() == Papel.GERENTE) {
-            boolean daLoja = quem.getLojaId().equals(alvo.getLojaId());
-            boolean papelOk = alvo.getPapel() == Papel.ATENDENTE || alvo.getPapel() == Papel.COZINHA;
-            if (!daLoja || !papelOk) {
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Você só gerencia atendentes e cozinha da sua loja");
-            }
-        }
+        Usuario alvo = alvoPermitido(quem, id);
         if (alvo.getId().equals(quem.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Você não pode desativar a si mesmo");
         }
@@ -133,5 +129,36 @@ public class UsuarioController implements SmartInitializingSingleton {
         }
         auditor.registrar(quem, alvo.getLojaId(), "USUARIO_ATIVO_ALTERADO", "Usuario", alvo.getId(), "ativo " + corpo.ativo());
         return UsuarioVista.de(alvo);
+    }
+
+    /** Fase 8b: gera o link de nova senha (vale 1 hora, uma vez). Sem e-mail: quem gera entrega o link à pessoa. */
+    @PostMapping("/{id}/redefinicao")
+    @Papeis({Papel.ADMIN, Papel.GERENTE})
+    @Transactional
+    public Redefinicao redefinicao(@RequestAttribute(AuthController.USUARIO) Usuario quem, @PathVariable Long id) {
+        Usuario alvo = alvoPermitido(quem, id);
+        if (!alvo.isAtivo()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A conta está desativada");
+        }
+        String token = AuthController.tokenAleatorio();
+        Instant expira = Instant.now().plus(VALIDADE_LINK);
+        alvo.permitirRedefinicao(AuthController.hash(token), expira);
+        usuarios.save(alvo);
+        auditor.registrar(quem, alvo.getLojaId(), "SENHA_REDEFINICAO_GERADA", "Usuario", alvo.getId(), null);
+        return new Redefinicao(token, expira);
+    }
+
+    /** O usuário alvo, se quem pede pode mexer nele: o GERENTE só em ATENDENTE/COZINHA da própria loja. */
+    private Usuario alvoPermitido(Usuario quem, Long id) {
+        Usuario alvo = usuarios.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não existe"));
+        if (quem.getPapel() == Papel.GERENTE) {
+            boolean daLoja = quem.getLojaId().equals(alvo.getLojaId());
+            boolean papelOk = alvo.getPapel() == Papel.ATENDENTE || alvo.getPapel() == Papel.COZINHA;
+            if (!daLoja || !papelOk) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Você só gerencia atendentes e cozinha da sua loja");
+            }
+        }
+        return alvo;
     }
 }
