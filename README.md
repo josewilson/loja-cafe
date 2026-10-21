@@ -223,6 +223,7 @@ Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plan
 | 4c. Publicar | `deploy/atualizar.sh` (backup antes, volta sozinho se falhar) e manual de operação (`deploy/OPERACAO.md`) | feita |
 | 5. Pix real | Cobrança Pix com QR na tela, confirmação por webhook assinado + conferência periódica; Mercado Pago (ou `simulado` para testar) | feita, falta exercitar com a conta Mercado Pago |
 | 6. Nota fiscal | Parte sem custo feita: dados fiscais (loja, NCM, CFOP) e recibo imprimível **sem valor fiscal**. A emissão de NFC-e (Focus NFe, certificado A1, credenciamento na SEFAZ, tributação com o contador) fica para quando você contratar | parcial (recibo feito; emissão pendente) |
+| 7a. Cartão na maquininha | `CARTAO_MODO=maquininha`: o atendente confirma na tela o que a maquininha respondeu (aprovado/recusado, NSU opcional) via `PUT /pedidos/{id}/pagamento` | feita |
 
 ## Cuidados
 
