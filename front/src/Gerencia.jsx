@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import {
   ajustarEstoque, alertasInsumos, caixaResumo, contarInsumo, listarInsumos, criarUsuario, definirAtivo, fecharCaixa, listarFechamentos,
-  baixarVendasCsv, gerarLinkSenha, listarProdutos, listarUsuarios, relatorioVendas,
+  baixarVendasCsv, gerarLinkSenha, listarAuditoria, listarProdutos, listarUsuarios, relatorioVendas,
 } from './api'
 import Topo from './Topo'
 import Erro from './Erro'
@@ -16,6 +16,7 @@ const SECOES = [
   { id: 'equipe', titulo: 'Equipe' },
   { id: 'estoque', titulo: 'Estoque' },
   { id: 'insumos', titulo: 'Insumos' },
+  { id: 'auditoria', titulo: 'Auditoria' },
 ]
 // Data de hoje no fuso do navegador, no formato do <input type="date">.
 const hoje = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)
@@ -389,6 +390,43 @@ function Insumos({ sessao, aoSair }) {
 }
 
 // Painel do gerente: vendas do dia, caixa por turno, equipe e estoque da loja dele.
+// Quem fez o quê e quando (GET /auditoria): os últimos 200 registros, com filtro por ação.
+function Auditoria({ aoSair }) {
+  const buscar = useCallback(() => listarAuditoria(200), [])
+  const { dados, erro } = useDados(buscar, aoSair)
+  const [acao, setAcao] = useState('')
+  const acoes = dados ? [...new Set(dados.map((r) => r.acao))].sort() : []
+  const linhas = dados?.filter((r) => !acao || r.acao === acao) ?? []
+  return (
+    <section className="cartao">
+      <h2 className="titulo-lista">
+        Auditoria
+        <select value={acao} onChange={(e) => setAcao(e.target.value)} aria-label="Ação">
+          <option value="">Todas as ações</option>
+          {acoes.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </h2>
+      <Erro erro={erro} />
+      {dados && linhas.length === 0 && <p className="vazio">Nenhum registro.</p>}
+      {linhas.length > 0 && (
+        <div className="rolagem">
+          <table className="tabela">
+            <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Item</th><th>Detalhe</th></tr></thead>
+            <tbody>
+              {linhas.map((r) => (
+                <tr key={r.id}>
+                  <td>{quando(r.quando)}</td><td>{r.usuarioId ?? '—'}</td><td>{r.acao}</td>
+                  <td>{r.entidade} {r.entidadeId}</td><td>{r.detalhe ?? ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function Gerencia({ sessao, aoSair, topo }) {
   const [secao, setSecao] = useState('vendas')
   const alertas = useDados(alertasInsumos, aoSair) // só para mostrar quantos insumos estão acabando na aba
@@ -408,6 +446,7 @@ export default function Gerencia({ sessao, aoSair, topo }) {
         {secao === 'equipe' && <Equipe aoSair={aoSair} />}
         {secao === 'estoque' && <Estoque sessao={sessao} aoSair={aoSair} />}
         {secao === 'insumos' && <Insumos sessao={sessao} aoSair={aoSair} />}
+        {secao === 'auditoria' && <Auditoria aoSair={aoSair} />}
       </main>
     </>
   )

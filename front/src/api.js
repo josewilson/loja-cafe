@@ -125,6 +125,7 @@ export const fecharCaixa = (dinheiroContado, observacao) =>
 export const listarFechamentos = (limite = 20) => pedir(`/caixa/fechamentos?limite=${limite}`)
 export const listarUsuarios = () => pedir('/usuarios')
 export const criarUsuario = (usuario) => enviar('/usuarios', usuario)
+export const listarAuditoria = (limite = 200) => pedir(`/auditoria?limite=${limite}`)
 export const gerarLinkSenha = (id) => enviar(`/usuarios/${id}/redefinicao`, {}) // { token, expiraEm }
 export const redefinirSenha = (token, senha) => enviar('/auth/redefinir-senha', { token, senha }) // sem login
 export const definirAtivo = (id, ativo) => alterar(`/usuarios/${id}/ativo`, { ativo })
