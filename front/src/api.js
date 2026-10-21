@@ -101,7 +101,24 @@ export const criarProduto = (produto) => enviar('/cardapio', produto)
 export const alterarProduto = (id, produto) => alterar(`/cardapio/${id}`, produto)
 
 // Painel do gerente
-export const relatorioVendas = (data) => pedir(`/relatorios/vendas${data ? `?data=${data}` : ''}`)
+export const relatorioVendas = (data, ate) => pedir(`/relatorios/vendas?data=${data}&ate=${ate}`)
+
+// CSV das vendas do período: o arquivo precisa do token, então baixa com fetch e entrega como arquivo (não dá para ser um link simples).
+export async function baixarVendasCsv(data, ate) {
+  const token = sessaoSalva()?.token
+  let resposta
+  try {
+    resposta = await fetch(`${API}/relatorios/vendas.csv?data=${data}&ate=${ate}`, { headers: { Authorization: `Bearer ${token}` } })
+  } catch {
+    throw new ApiErro('rede', 0, [`Não consegui falar com o servidor (${API}). Ele está no ar?`])
+  }
+  if (!resposta.ok) throw new ApiErro('http', resposta.status, await mensagensDoErro(resposta))
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(new Blob(['﻿', await resposta.text()], { type: 'text/csv' })) // BOM: o Excel abre os acentos certo
+  link.download = `vendas-${data}-a-${ate}.csv`
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
 export const caixaResumo = () => pedir('/caixa/resumo')
 export const fecharCaixa = (dinheiroContado, observacao) =>
   enviar('/caixa/fechamentos', { dinheiroContado, observacao: observacao || undefined })

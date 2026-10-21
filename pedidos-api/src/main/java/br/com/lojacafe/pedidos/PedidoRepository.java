@@ -52,6 +52,9 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
             + "group by i.item order by sum(i.quantidade) desc, i.item")
     List<Object[]> maisVendidos(Long lojaId, Instant de, Instant ate, StatusPedido pago, Preparo cancelado, Pageable limite);
 
+    List<Pedido> findByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndStatusAndPreparoNotOrderByIdAsc(Long lojaId, Instant de, Instant ate,
+                                                                                                           StatusPedido status, Preparo preparo);
+
     long countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndStatus(Long lojaId, Instant de, Instant ate, StatusPedido status);
 
     long countByLojaIdAndCriadoEmGreaterThanEqualAndCriadoEmLessThanAndEstornadoEmIsNotNull(Long lojaId, Instant de, Instant ate);

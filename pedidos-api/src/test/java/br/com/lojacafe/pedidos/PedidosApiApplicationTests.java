@@ -1190,6 +1190,35 @@ class PedidosApiApplicationTests {
         GET(admin(), "/relatorios/vendas").andExpect(status().isBadRequest());
     }
 
+    @Test
+    void vendasDeUmPeriodoEExportacaoCsv() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        long pix = pagoComo(gerente, "PIX", 1, 2); // 17,00
+        long cancelado = pagoComo(gerente, "DINHEIRO", 2, 1);
+        PUT(gerente, "/pedidos/" + cancelado + "/cancelar", "{}").andExpect(status().isOk());
+        var hoje = java.time.LocalDate.now(java.time.ZoneId.of("America/Sao_Paulo"));
+
+        GET(gerente, "/relatorios/vendas?data=" + hoje.minusDays(3) + "&ate=" + hoje).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(hoje.minusDays(3).toString())).andExpect(jsonPath("$.ate").value(hoje.toString()))
+                .andExpect(jsonPath("$.pedidos").value(1)).andExpect(jsonPath("$.total").value(17.0));
+        GET(gerente, "/relatorios/vendas?data=" + hoje.minusDays(3) + "&ate=" + hoje.minusDays(1))
+                .andExpect(jsonPath("$.pedidos").value(0)); // o período termina antes de hoje
+        GET(gerente, "/relatorios/vendas").andExpect(jsonPath("$.ate").value(hoje.toString())); // sem "ate": só o dia
+
+        String csv = GET(gerente, "/relatorios/vendas.csv?data=" + hoje + "&ate=" + hoje).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var linhas = csv.split("\n");
+        assertEquals("pedido;data;hora;forma;valor", linhas[0]);
+        assertEquals(2, linhas.length); // cabeçalho + a venda (o cancelado fica de fora)
+        org.junit.jupiter.api.Assertions.assertTrue(linhas[1].startsWith(pix + ";" + hoje + ";") && linhas[1].endsWith(";PIX;17,00"), linhas[1]);
+
+        GET(gerente, "/relatorios/vendas?data=" + hoje + "&ate=" + hoje.minusDays(1)).andExpect(status().isBadRequest());
+        GET(gerente, "/relatorios/vendas?data=" + hoje.minusDays(400) + "&ate=" + hoje).andExpect(status().isBadRequest());
+        GET(gerente, "/relatorios/vendas.csv?ate=amanha").andExpect(status().isBadRequest());
+        GET(token(Papel.ATENDENTE, loja), "/relatorios/vendas.csv").andExpect(status().isForbidden());
+    }
+
     // ---------- cardápio da rede (ADMIN) ----------
 
     /** Cria um produto novo (nome único) e devolve o id. */

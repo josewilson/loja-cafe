@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import {
   ajustarEstoque, alertasInsumos, caixaResumo, contarInsumo, listarInsumos, criarUsuario, definirAtivo, fecharCaixa, listarFechamentos,
-  listarProdutos, listarUsuarios, relatorioVendas,
+  baixarVendasCsv, listarProdutos, listarUsuarios, relatorioVendas,
 } from './api'
 import Topo from './Topo'
 import Erro from './Erro'
@@ -37,14 +37,24 @@ function Formas({ formas, total }) {
 
 function Vendas({ aoSair }) {
   const [data, setData] = useState(hoje)
-  const buscar = useCallback(() => relatorioVendas(data), [data])
+  const [ate, setAte] = useState(hoje)
+  const [erroCsv, setErroCsv] = useState(null)
+  const buscar = useCallback(() => relatorioVendas(data, ate), [data, ate])
   const { dados: v, erro } = useDados(buscar, aoSair)
+  const baixar = () => baixarVendasCsv(data, ate).then(() => setErroCsv(null), setErroCsv)
   return (
     <section className="cartao">
       <h2 className="titulo-lista">
-        Vendas do dia
-        <input type="date" value={data} max={hoje()} onChange={(e) => e.target.value && setData(e.target.value)} aria-label="Dia" />
+        {data === ate ? 'Vendas do dia' : 'Vendas do período'}
+        <span>
+          <input type="date" value={data} max={ate} onChange={(e) => e.target.value && setData(e.target.value)} aria-label="De" />
+          {' a '}
+          <input type="date" value={ate} min={data} max={hoje()} onChange={(e) => e.target.value && setAte(e.target.value)} aria-label="Até" />
+          {' '}
+          <button type="button" onClick={baixar}>Baixar CSV</button>
+        </span>
       </h2>
+      <Erro erro={erroCsv} />
       <Erro erro={erro} />
       {v && (
         <>

@@ -164,7 +164,7 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 137 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
+cd pedidos-api   && ./mvnw test                 # 138 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
 cd pagamentos-py && python -m unittest -v       # 31 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
 cd front         && npm run lint                # oxlint
 node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
@@ -228,6 +228,7 @@ Ainda não existem a hospedagem de verdade, a nota fiscal real (só simulada) ne
 | 7b. Estorno | O gerente registra a devolução do dinheiro de pedido pago e cancelado (`PUT /pedidos/{id}/estorno`, auditoria `PAGAMENTO_ESTORNADO`); o sistema não move dinheiro | feita (Pix automático pela API do provedor fica para depois) |
 | 7c. Estorno automático do Pix | Cancelar pedido Pix pago pede a devolução ao provedor (tópico `pagamentos-estornos`; Mercado Pago ou `simulado`) e marca `estornadoEm` sozinho; sem provedor ou se falhar, o gerente registra à mão | feita, falta exercitar com a conta Mercado Pago |
 | 7d. Estornos no painel | O relatório de vendas e a aba "Gerência" mostram estornos do dia e os pendentes (pedidos pagos e cancelados com dinheiro a devolver) | feita |
+| 8a. Vendas por período e CSV | `GET /relatorios/vendas?data=&ate=` soma um período (até 366 dias) e `GET /relatorios/vendas.csv` baixa as vendas, uma por linha (`;` e vírgula decimal, abre no Excel), para o contador; na Gerência, "De/Até" e "Baixar CSV" | feita |
 
 ## Cuidados
 

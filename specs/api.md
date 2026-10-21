@@ -286,11 +286,13 @@ na maquininha (cartão), no app do banco ou do provedor (Pix) ou no caixa (dinhe
 ## Painel do gerente: vendas e caixa
 "Venda" = pedido `PAGO` e não `CANCELADO`. Valores em reais. `forma` = `PIX`, `CREDITO`, `DEBITO` ou `DINHEIRO`.
 
-### GET /relatorios/vendas?data=AAAA-MM-DD  (`ADMIN`, `GERENTE`)
+### GET /relatorios/vendas?data=AAAA-MM-DD&ate=AAAA-MM-DD  (`ADMIN`, `GERENTE`)
 Vendas de um dia da loja (padrão: hoje; dia = de 00:00 a 24:00 no fuso de São Paulo, pela hora em que o pedido foi criado).
+Fase 8a: `ate` (opcional, inclusive) transforma o dia em período de `data` até `ate`; sem `ate`, vale só o dia de `data`.
+`ate` antes de `data` ou mais de 366 dias depois: `400`.
 O `ADMIN` informa `?lojaId=`. Data inválida: `400`. Resposta `200`:
 ```json
-{ "data": "2026-10-17", "lojaId": 1, "pedidos": 12, "total": 340.50, "ticketMedio": 28.38,
+{ "data": "2026-10-17", "ate": "2026-10-17", "lojaId": 1, "pedidos": 12, "total": 340.50, "ticketMedio": 28.38,
   "porForma": [ { "forma": "PIX", "pedidos": 7, "total": 210.00 } ],
   "maisVendidos": [ { "item": "Cappuccino", "quantidade": 15, "total": 225.00 } ],
   "recusados": 1, "cancelados": 2, "aguardando": 0, "estornados": 1, "estornosPendentes": 0 }
@@ -298,6 +300,14 @@ O `ADMIN` informa `?lojaId=`. Data inválida: `400`. Resposta `200`:
 `maisVendidos` traz até 5 itens, do que mais saiu para o que menos saiu. `ticketMedio` é `0` sem vendas.
 Fase 7d: `estornados` = pedidos do dia com o dinheiro já devolvido. `estornosPendentes` = pedidos da loja **de qualquer dia** que foram pagos, cancelados
 e ainda não estornados (dinheiro a devolver: `PUT /pedidos/{id}/estorno`).
+
+### GET /relatorios/vendas.csv?data=AAAA-MM-DD&ate=AAAA-MM-DD  (`ADMIN`, `GERENTE`)
+Fase 8a: as vendas do mesmo período como CSV, para o contador. Mesmos parâmetros e erros de `/relatorios/vendas`. Resposta `200` (`text/csv`),
+uma linha por venda (`PAGO` e não `CANCELADO`), separador `;`, valor com vírgula decimal, data e hora no fuso de São Paulo:
+```
+pedido;data;hora;forma;valor
+41;2026-10-17;09:32:10;PIX;17,00
+```
 
 ### Fechamento de caixa (por turno)
 O caixa é fechado quando o turno acaba. Cada pedido vendido entra em **um único** fechamento (o primeiro depois que foi pago),
