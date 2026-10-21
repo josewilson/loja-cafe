@@ -2,6 +2,13 @@ package br.com.lojacafe.pedidos;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import br.com.lojacafe.pedidos.controller.FichaController;
+import br.com.lojacafe.pedidos.model.Extra;
+import br.com.lojacafe.pedidos.model.FichaExtra;
+import br.com.lojacafe.pedidos.model.FichaProduto;
+import br.com.lojacafe.pedidos.model.ItemPedido;
+import br.com.lojacafe.pedidos.model.Produto;
+import br.com.lojacafe.pedidos.model.Tamanho;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -15,10 +22,8 @@ class ConsumoInsumosTest {
     private static final long CHANTILLY = 2L;
 
     private static ItemPedido item(long produtoId, int quantidade, Tamanho tamanho, List<Extra> extras) {
-        Produto p = new Produto();
+        Produto p = new Produto("Produto " + produtoId, "", "", new BigDecimal("10.00"));
         ReflectionTestUtils.setField(p, "id", produtoId);
-        ReflectionTestUtils.setField(p, "nome", "Produto " + produtoId);
-        ReflectionTestUtils.setField(p, "preco", new BigDecimal("10.00"));
         return new ItemPedido(p, quantidade, tamanho, extras);
     }
 

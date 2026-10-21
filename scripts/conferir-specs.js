@@ -12,6 +12,7 @@ const path = require("path");
 const RAIZ = path.resolve(__dirname, "..");
 const ler = (p) => fs.readFileSync(path.join(RAIZ, p), "utf8").replace(/\r/g, "");
 const JAVA = "pedidos-api/src/main/java/br/com/lojacafe/pedidos/";
+const CONTROLLER = JAVA + "controller/", MODEL = JAVA + "model/", SERVICE = JAVA + "service/";
 const problemas = [];
 const erro = (m) => problemas.push(m);
 
@@ -21,8 +22,8 @@ const eventos = ler("specs/eventos.md");
 // ---------- 1. rotas ----------
 const norm = (r) => r.replace(/\{[^}]+\}/g, "{x}").replace(/\?.*$/, "").replace(/\/$/, "") || "/";
 const rotasDoCodigo = new Set();
-for (const arquivo of fs.readdirSync(path.join(RAIZ, JAVA)).filter((f) => f.endsWith("Controller.java"))) {
-  const fonte = ler(JAVA + arquivo);
+for (const arquivo of fs.readdirSync(path.join(RAIZ, CONTROLLER)).filter((f) => f.endsWith("Controller.java"))) {
+  const fonte = ler(CONTROLLER + arquivo);
   const base = (fonte.match(/@RequestMapping\("([^"]*)"\)/) || [])[1] || "";
   for (const m of fonte.matchAll(/@(Get|Post|Put|Delete)Mapping(?:\("([^"]*)"\))?/g)) {
     rotasDoCodigo.add(m[1].toUpperCase() + " " + norm(base + (m[2] || "")));
@@ -39,7 +40,7 @@ for (const r of rotasDaSpec) if (!rotasDoCodigo.has(r)) erro(`rota em specs/api.
 
 // ---------- 2. enums citados na spec ----------
 function valoresDoEnum(arquivo) {
-  const fonte = ler(JAVA + arquivo);
+  const fonte = ler(MODEL + arquivo);
   const corpo = fonte.slice(fonte.indexOf("{") + 1);
   const lista = corpo.split(/;|\n\s*\n/)[0]; // até o primeiro ";" (começo dos campos) ou linha em branco
   return [...lista.matchAll(/^\s*([A-Z][A-Z_]+)\b/gm)].map((m) => m[1]);
@@ -59,7 +60,7 @@ function chavesDoExemplo(texto, titulo) {
   if (!bloco) return null;
   try { return Object.keys(JSON.parse(bloco[1])).sort(); } catch { return null; }
 }
-const record = ler(JAVA + "PagamentosKafka.java").match(/record PedidoCriado\(([\s\S]*?)\) \{\}/);
+const record = ler(SERVICE + "PagamentosKafka.java").match(/record PedidoCriado\(([\s\S]*?)\) \{\}/);
 const doRecord = record ? [...record[1].matchAll(/\b\w+(?:<[^>]*>)? (\w+)(?:,|$)/g)].map((m) => m[1]).sort() : null;
 const doExemplo = chavesDoExemplo(eventos, "## Tópico `pedidos-criados`");
 if (!doRecord || !doExemplo) erro("não consegui ler o evento pedidos-criados (record Java ou exemplo da spec)");
@@ -74,9 +75,21 @@ if (!doPython || !resultadoSpec) erro("não consegui ler o evento pagamentos-res
 else if (doPython.join() !== resultadoSpec.join()) erro(`pagamentos-resultados: o código publica [${doPython}] e specs/eventos.md mostra [${resultadoSpec}]`);
 
 // ---------- 5. tópicos ----------
-for (const m of ler(JAVA + "PagamentosKafka.java").matchAll(/String \w+ = "([^"]+)"/g)) {
+for (const m of ler(SERVICE + "PagamentosKafka.java").matchAll(/String \w+ = "([^"]+)"/g)) {
   if (!eventos.includes("`" + m[1] + "`")) erro(`tópico ${m[1]} existe no código mas não está em specs/eventos.md`);
 }
+
+// ---------- 6. coleção do Insomnia/Postman ----------
+// Não precisa ter todas as rotas, mas não pode citar rota que não existe mais no código.
+(function conferirColecao(itens) {
+  for (const i of itens) {
+    if (i.item) { conferirColecao(i.item); continue; }
+    const caminho = String(i.request.url.raw || i.request.url);
+    if (!caminho.startsWith("{{baseUrl}}")) continue; // as do Pagamentos (Python) não estão no código Java
+    const rota = i.request.method + " " + norm(caminho.replace("{{baseUrl}}", "").replace(/\/(\d+|[A-Z_]+)(?=\/|\?|$)/g, "/{x}"));
+    if (!rotasDoCodigo.has(rota)) erro(`a coleção cita ${rota}, que não existe no código`);
+  }
+})(JSON.parse(ler("specs/loja-cafe.postman_collection.json")).item);
 
 // ---------- resultado ----------
 console.log(`rotas no código: ${rotasDoCodigo.size} · rotas na spec: ${rotasDaSpec.size}`);

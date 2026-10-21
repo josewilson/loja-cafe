@@ -1,8 +1,11 @@
 package br.com.lojacafe.pedidos;
 
-import br.com.lojacafe.pedidos.PedidoController.NovoPedido;
 import static org.junit.jupiter.api.Assertions.*;
 
+import br.com.lojacafe.pedidos.controller.PedidoController.NovoPedido;
+import br.com.lojacafe.pedidos.model.Extra;
+import br.com.lojacafe.pedidos.model.FormaPagamento;
+import br.com.lojacafe.pedidos.model.Tamanho;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import java.util.Collections;

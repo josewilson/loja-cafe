@@ -7,6 +7,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import br.com.lojacafe.pedidos.controller.SaudeController;
+import br.com.lojacafe.pedidos.model.Insumo;
+import br.com.lojacafe.pedidos.model.Loja;
+import br.com.lojacafe.pedidos.model.Papel;
+import br.com.lojacafe.pedidos.model.Pedido;
+import br.com.lojacafe.pedidos.model.Produto;
+import br.com.lojacafe.pedidos.service.PagamentosKafka;
 import com.jayway.jsonpath.JsonPath;
 import java.util.List;
 import java.util.UUID;
