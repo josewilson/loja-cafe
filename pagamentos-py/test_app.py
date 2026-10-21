@@ -98,6 +98,33 @@ class CartaoNaMaquininha(unittest.TestCase):
         self.assertEqual(app.resultado_do_evento(json.dumps({"pedidoId": 7, "valor": 250.0, "formaPagamento": "CREDITO"}))["status"], "RECUSADO")
 
 
+class EstornoDoPix(unittest.TestCase):
+    def usar(self, provedor):
+        antes = app.PIX
+        app.PIX = provedor
+        self.addCleanup(lambda: setattr(app, "PIX", antes))
+
+    def test_sem_provedor_nao_publica_nada(self):
+        self.usar(None)
+        self.assertIsNone(app.estornar_do_evento(json.dumps({"pedidoId": 5, "valor": 17.0})))
+
+    def test_simulado_devolve(self):
+        self.usar(pix.Simulado())
+        self.assertEqual(app.estornar_do_evento(json.dumps({"pedidoId": 5}))["status"], "ESTORNADO")
+
+    def test_mercado_pago_acha_o_pagamento_e_pede_o_reembolso(self):
+        mp = MPFalso({("GET", "/v1/payments/search?external_reference=5&status=approved"): {"results": [{"id": 987}]},
+                      ("POST", "/v1/payments/987/refunds"): {}})
+        self.usar(mp)
+        self.assertEqual(app.estornar_do_evento(json.dumps({"pedidoId": 5}))["status"], "ESTORNADO")
+        self.assertEqual(mp.chamadas[-1], ("POST", "/v1/payments/987/refunds", {}, "loja-cafe-estorno-5"))
+
+    def test_falha_do_provedor_vira_estorno_falhou(self):
+        self.usar(MPFalso({("GET", "/v1/payments/search?external_reference=5&status=approved"): pix.PixErro("fora do ar")}))
+        r = app.estornar_do_evento(json.dumps({"pedidoId": 5}))
+        self.assertEqual((r["status"], r["pedidoId"]), ("ESTORNO_FALHOU", 5))
+
+
 class ProdutorFalso:
     def __init__(self):
         self.enviados = []

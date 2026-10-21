@@ -50,6 +50,7 @@ class PedidosApiApplicationTests {
     @org.junit.jupiter.api.BeforeEach
     void semKafka() throws Exception {
         org.mockito.Mockito.doNothing().when(eventos).publicarCriado(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.doNothing().when(eventos).publicarEstorno(org.mockito.ArgumentMatchers.any());
     }
 
     // ---------- ajudantes ----------
@@ -569,6 +570,35 @@ class PedidosApiApplicationTests {
         PUT(gerente, "/pedidos/" + id + "/estorno", "{}").andExpect(status().isConflict());          // só uma vez
         GET(gerente, "/auditoria").andExpect(jsonPath("$[?(@.acao=='PAGAMENTO_ESTORNADO' && @.entidadeId=='" + id + "')].detalhe", contains("devolvido no Pix")));
         PUT(gerente, "/pedidos/999999/estorno", "{}").andExpect(status().isNotFound());
+    }
+
+    @Test
+    void cancelarPixPagoPedeOEstornoEORetornoDoProvedorRegistra() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        long pix = lancarPago(token(Papel.ATENDENTE, loja), 3, 1);
+        PUT(gerente, "/pedidos/" + pix + "/cancelar", "{}").andExpect(status().isOk());
+        org.mockito.Mockito.verify(eventos).publicarEstorno(org.mockito.ArgumentMatchers.argThat(p -> p.getId() == pix));
+        resultado(pix, "ESTORNO_FALHOU");                                                             // provedor falhou: nada muda
+        GET(gerente, "/pedidos?limite=1").andExpect(jsonPath("$[0].estornadoEm").doesNotExist());
+        resultado(pix, "ESTORNADO");
+        GET(gerente, "/pedidos?limite=1").andExpect(jsonPath("$[0].estornadoEm").isNotEmpty());
+        resultado(pix, "ESTORNADO");                                                                  // repetido: sem efeito
+        GET(gerente, "/auditoria").andExpect(jsonPath("$[?(@.acao=='PAGAMENTO_ESTORNADO' && @.entidadeId=='" + pix + "')]", hasSize(1)));
+        PUT(gerente, "/pedidos/" + pix + "/estorno", "{}").andExpect(status().isConflict());         // já estornado
+    }
+
+    @Test
+    void cancelarOQueNaoEPixPagoNaoPedeEstornoAoProvedor() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        long dinheiro = pagoComo(token(Papel.ATENDENTE, loja), "DINHEIRO", 3, 1);
+        long aguardando = lancar(token(Papel.ATENDENTE, loja), 3, 1);
+        PUT(gerente, "/pedidos/" + dinheiro + "/cancelar", "{}").andExpect(status().isOk());
+        PUT(gerente, "/pedidos/" + aguardando + "/cancelar", "{}").andExpect(status().isOk());
+        org.mockito.Mockito.verify(eventos, org.mockito.Mockito.never()).publicarEstorno(org.mockito.ArgumentMatchers.any());
+        resultado(aguardando, "ESTORNADO");                                                           // evento fora de hora: ignorado
+        GET(gerente, "/pedidos?limite=1").andExpect(jsonPath("$[0].estornadoEm").doesNotExist());
     }
 
     @Test

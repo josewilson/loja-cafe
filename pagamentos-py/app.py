@@ -118,6 +118,20 @@ def resultado_do_evento(texto):
     return montar(pedido_id, status, motivo)
 
 
+def estornar_do_evento(texto):
+    """Lê um pedido de estorno (pagamentos-estornos) e devolve o resultado a publicar: ESTORNADO ou ESTORNO_FALHOU.
+    Sem provedor de Pix (automatico) devolve None: o gerente registra a devolução à mão."""
+    pedido_id = json.loads(texto)["pedidoId"]
+    if PIX is None:
+        return None
+    try:
+        PIX.estornar(pedido_id)
+    except pix.PixErro as erro:
+        print(f"[{INSTANCIA}] pedido {pedido_id}: estorno falhou: {erro}", flush=True)
+        return montar(pedido_id, "ESTORNO_FALHOU", "provedor do Pix não devolveu")
+    return montar(pedido_id, "ESTORNADO", None)
+
+
 def montar(pedido_id, status, motivo, cobranca=None):
     """O evento de pagamentos-resultados (specs/eventos.md). 'cobranca' só existe no status AGUARDANDO."""
     dados_pix = None if cobranca is None else {**cobranca, "expiraEm": cobranca["expiraEm"].isoformat()}
@@ -191,8 +205,8 @@ def ouvir_kafka():
     # murmur2_random = o mesmo cálculo de partição do cliente Java: a mesma chave cai
     # na mesma partição, venha a mensagem do Python, do Spring ou do terminal do Kafka.
     produtor = Producer({"bootstrap.servers": KAFKA, "partitioner": "murmur2_random", **IPV4, **seguranca_kafka()})
-    consumidor.subscribe(["pedidos-criados"])
-    print(f"[{INSTANCIA}] ouvindo pedidos-criados no grupo 'pagamentos'", flush=True)
+    consumidor.subscribe(["pedidos-criados", "pagamentos-estornos"])
+    print(f"[{INSTANCIA}] ouvindo pedidos-criados e pagamentos-estornos no grupo 'pagamentos'", flush=True)
 
     ultima_conferencia = time.monotonic()
     while not parar.is_set():
@@ -207,14 +221,17 @@ def ouvir_kafka():
             continue
 
         try:
-            resultado = resultado_do_evento(msg.value())
+            if msg.topic() == "pagamentos-estornos":
+                resultado = estornar_do_evento(msg.value())
+            else:
+                resultado = resultado_do_evento(msg.value())
         except (ValueError, KeyError, TypeError) as erro:
             # Evento quebrado não pode parar o caixa: registra, pula e segue com o próximo.
             print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · "
                   f"evento inválido ignorado ({erro!r})", flush=True)
             continue
         if resultado is None:
-            print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · cartão na maquininha: a decisão é do balcão", flush=True)
+            print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · sem ação (cartão na maquininha ou estorno manual): a decisão é do balcão", flush=True)
             continue
         publicar(resultado)  # mesma chave (pedidoId) do evento de entrada
         print(f"[{INSTANCIA}] partição {msg.partition()} · offset {msg.offset()} · "

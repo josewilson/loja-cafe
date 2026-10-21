@@ -56,6 +56,11 @@ Dá `404` fora do modo `simulado` e quando o pedido não tem Pix em aberto **nes
 Limites: as cobranças em aberto vivem na memória da instância (reiniciar o Pagamentos as esquece até `POST /pedidos/reenfileirar`; o webhook, por outro lado,
 funciona em qualquer instância). Só o Pix é real; crédito, débito e dinheiro continuam simulados.
 
+## Estorno do Pix (Fase 7c)
+Lê `pagamentos-estornos` no mesmo grupo e pede a devolução ao provedor: Mercado Pago (busca o pagamento aprovado pelo `external_reference = pedidoId` e pede o
+reembolso total, chave de idempotência `loja-cafe-estorno-<id>`) ou `simulado` (devolve de mentira). Responde `ESTORNADO` ou `ESTORNO_FALHOU` em `pagamentos-resultados`.
+Com `PIX_PROVEDOR=automatico` não responde nada.
+
 ## Ato 2 · por HTTP (síncrono)
 `POST http://localhost:5001/pagamentos`
 ```json

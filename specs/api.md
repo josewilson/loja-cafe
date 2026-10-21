@@ -271,6 +271,8 @@ Fase 7b: registra que o dinheiro de um pedido **cancelado que já estava `PAGO`*
 na maquininha (cartão), no app do banco ou do provedor (Pix) ou no caixa (dinheiro) e anota aqui. Corpo opcional: `{ "motivo": "devolvido no Pix" }` (até 140, vai para a auditoria).
 - Pedido que não está `PAGO`, que não está `CANCELADO` ou que já foi estornado: `409`. Outra loja: `403`. Inexistente: `404`.
 - `200` com o pedido, que ganha o campo `estornadoEm` (`null` até o estorno). Auditoria: `PAGAMENTO_ESTORNADO`.
+- **Pix (Fase 7c):** ao cancelar um pedido `PIX` já `PAGO`, a API pede a devolução ao provedor (`specs/eventos.md`, tópico `pagamentos-estornos`) e o `estornadoEm`
+  é preenchido sozinho quando o provedor devolve (auditoria `PAGAMENTO_ESTORNADO`, detalhe `automático (Pix)`, sem usuário). Se falhar, ou sem provedor, use este endpoint.
 
 ## Painel do gerente: vendas e caixa
 "Venda" = pedido `PAGO` e não `CANCELADO`. Valores em reais. `forma` = `PIX`, `CREDITO`, `DEBITO` ou `DINHEIRO`.

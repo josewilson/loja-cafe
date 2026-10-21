@@ -6,6 +6,7 @@
 Contrato comum:
   criar(pedido_id, valor, expira_em) -> {"id", "copiaECola", "qrCode", "expiraEm"}
   consultar(cobranca_id)             -> (pedido_id, estado)   estado: "pago" | "pendente" | "falhou"
+  estornar(pedido_id)                -> devolve o Pix pago do pedido (levanta PixErro se não conseguir)
 """
 import hashlib
 import hmac
@@ -36,6 +37,10 @@ class Simulado:
     def consultar(self, cobranca_id):
         # Quem confirma o pagamento simulado é a rota /pix/simular; aqui nunca "chega" sozinho.
         return self._pedidos.get(cobranca_id), "pendente"
+
+
+    def estornar(self, pedido_id):
+        pass  # nada a devolver de verdade
 
 
 class MercadoPago:
@@ -87,6 +92,15 @@ class MercadoPago:
             return int(pagamento["external_reference"]), estado.get(pagamento["status"], "falhou")
         except (KeyError, TypeError, ValueError) as erro:
             raise PixErro("Mercado Pago: pagamento sem external_reference") from erro
+
+    def estornar(self, pedido_id):
+        # Acha o pagamento aprovado pela referência do pedido e pede o reembolso total (a chave de idempotência evita devolver duas vezes).
+        achados = self._chamar("GET", f"/v1/payments/search?external_reference={pedido_id}&status=approved")
+        try:
+            pagamento = achados["results"][0]["id"]
+        except (KeyError, IndexError, TypeError) as erro:
+            raise PixErro("Mercado Pago: pagamento aprovado não encontrado") from erro
+        self._chamar("POST", f"/v1/payments/{pagamento}/refunds", {}, chave=f"loja-cafe-estorno-{pedido_id}")
 
 
 def assinatura_valida(segredo, cabecalho, request_id, data_id):

@@ -24,6 +24,7 @@ public class CozinhaController {
     private final AuditoriaRepository auditor;
     private final FichaController consumo;
     private final PagamentosKafka pagamentos;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CozinhaController.class);
 
     public CozinhaController(PedidoRepository repository, EstoqueLojaRepository estoque, AuditoriaRepository auditor, FichaController consumo,
                               PagamentosKafka pagamentos) {
@@ -117,6 +118,15 @@ public class CozinhaController {
         }
         String motivo = corpo == null || corpo.motivo() == null ? "" : corpo.motivo().trim();
         auditor.registrar(usuario, pedido.getLojaId(), "PEDIDO_CANCELADO", "Pedido", id, motivo.isEmpty() ? null : motivo);
+        if (pedido.getStatus() == StatusPedido.PAGO && pedido.getFormaPagamento() == FormaPagamento.PIX) {
+            // Pix pago: pede a devolução ao provedor. O resultado volta por pagamentos-resultados; se não sair, o gerente registra à mão.
+            // (A linha segue travada até o fim desta transação, então a resposta do Pagamentos espera o cancelamento gravar.)
+            try {
+                pagamentos.publicarEstorno(pedido);
+            } catch (Exception e) {
+                log.warn("Pedido {}: não consegui pedir o estorno do Pix ({}); registre à mão", id, e.toString());
+            }
+        }
         return repository.save(pedido);
     }
 
