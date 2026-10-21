@@ -44,6 +44,7 @@ Não existe cadastro público: crie as contas da equipe como ADMIN.
 ```bash
 scripts/criar-usuario.sh bia@loja.com Bia ATENDENTE 1      # e-mail, nome, papel (ADMIN|GERENTE|ATENDENTE|COZINHA), id da loja; pede a senha
 scripts/criar-usuario.sh ze@loja.com Zé GERENTE 1
+scripts/link-senha.sh ze@loja.com                          # esqueceu a senha e ninguém gera o link na tela: imprime um link de 1 hora
 ```
 O gerente cria atendentes e cozinha da própria loja pela API (`POST /usuarios`); o ADMIN cria lojas (`POST /lojas`) e define o estoque de cada uma. Veja `specs/api.md`.
 

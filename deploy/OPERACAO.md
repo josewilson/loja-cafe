@@ -132,8 +132,10 @@ Edite `deploy/.env` e rode `$C up -d` (recria só o que depende do valor).
 - **`POSTGRES_PASSWORD`**: a senha de um banco **já existente** vive dentro dele. Troque lá primeiro:
   `$C exec -T postgres psql -U loja -d loja_cafe -c "alter user loja password 'NOVA'"` e depois no `.env`.
 - **`KAFKA_PASSWORD`**: troque no `.env` e `$C up -d` (kafka, API e Pagamentos juntos).
-- **Senha de um usuário da tela**: o ADMIN cria a conta de novo (não há "esqueci a senha" automático nesta versão).
-- **ADMIN esqueceu a senha:** o ADMIN é recriado a partir do `.env` quando não existe nenhum. Coloque a nova senha em `ADMIN_PASSWORD` e:
+- **Senha de um usuário da tela**: o gerente (ou ADMIN) clica em "Nova senha" na aba Equipe e entrega o link à pessoa.
+- **Ninguém consegue gerar o link (o único ADMIN esqueceu a senha):** no servidor, `COMPOSE=deploy/compose.prod.yml URL=https://SEU-SITE scripts/link-senha.sh admin@seu-email`
+  imprime um link de 1 hora e uma vez. Abra-o e escolha a senha nova. (Não grava auditoria, porque não passa pela API.)
+- **Alternativa para o ADMIN, se o script não servir:** o ADMIN é recriado a partir do `.env` quando não existe nenhum. Coloque a nova senha em `ADMIN_PASSWORD` e:
   ```bash
   $C exec -T postgres psql -U loja -d loja_cafe -c "delete from sessao where usuario_id in (select id from usuario where papel='ADMIN'); delete from usuario where papel='ADMIN';"
   $C restart pedidos-api       # recria o ADMIN com ADMIN_EMAIL / ADMIN_PASSWORD

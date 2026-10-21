@@ -182,7 +182,7 @@ loja-cafe/
 ├── analytics-py/     Painel de vendas lido do Kafka
 ├── infra/            Desenvolvimento: compose.yml (Postgres, Kafka, kafka-ui) e .env.example
 ├── deploy/           Produção: compose.prod.yml, Caddy (HTTPS), backup criptografado, restauração, status.sh
-├── scripts/          e2e.sh, testar-backup.sh, conferir-specs.js, criar-usuario.sh
+├── scripts/          e2e.sh, testar-backup.sh, conferir-specs.js, criar-usuario.sh, link-senha.sh
 ├── specs/            Contratos (api, eventos, pagamentos) e coleção do Insomnia
 ├── docs/             Imagens do README
 ├── .github/          CI: testes, ponta a ponta, pilha de produção, backup e conferência das specs
@@ -230,6 +230,7 @@ Ainda não existem a hospedagem de verdade, a nota fiscal real (só simulada) ne
 | 7d. Estornos no painel | O relatório de vendas e a aba "Gerência" mostram estornos do dia e os pendentes (pedidos pagos e cancelados com dinheiro a devolver) | feita |
 | 8a. Vendas por período e CSV | `GET /relatorios/vendas?data=&ate=` soma um período (até 366 dias) e `GET /relatorios/vendas.csv` baixa as vendas, uma por linha (`;` e vírgula decimal, abre no Excel), para o contador; na Gerência, "De/Até" e "Baixar CSV" | feita |
 | 8b. Nova senha por link | O gerente (ou ADMIN) gera um link de uso único, válido por 1 hora (`POST /usuarios/{id}/redefinicao`), e entrega à pessoa; ela abre `/?redefinir=...` e escolhe a senha (`POST /auth/redefinir-senha`). Sem e-mail: nada a contratar; as sessões abertas da conta caem | feita |
+| 8c. Link de senha pelo servidor | `scripts/link-senha.sh <email>` gera o link direto no banco, para o ADMIN que esqueceu a senha (ninguém mais pode gerar o dele). Não passa pela API, então não grava auditoria | feita |
 
 ## Cuidados
 
