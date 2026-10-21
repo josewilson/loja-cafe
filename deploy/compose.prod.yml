@@ -89,6 +89,12 @@ services:
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD em deploy/.env}
       # Atrás do Caddy: o IP de quem chama vem no X-Forwarded-For (o limite de tentativas de login usa o IP).
       SERVER_FORWARD_HEADERS_STRATEGY: native
+      # NFC-e (Fase 6b). desligado = não emite. Veja deploy/.env.example.
+      NFCE_PROVEDOR: ${NFCE_PROVEDOR:-desligado}
+      FOCUS_TOKEN: ${FOCUS_TOKEN:-}
+      FOCUS_AMBIENTE: ${FOCUS_AMBIENTE:-homologacao}
+      NFCE_ICMS_SITUACAO: ${NFCE_ICMS_SITUACAO:-102}
+      NFCE_ICMS_ORIGEM: ${NFCE_ICMS_ORIGEM:-0}
     depends_on:
       postgres: { condition: service_healthy }
       kafka: { condition: service_healthy }

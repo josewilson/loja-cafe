@@ -10,7 +10,7 @@ Internet ─ 443 ─► Caddy ── /      → tela (arquivos estáticos)
 ```
 
 > **Antes de vender de verdade:** só o **Pix** pode ser real (`PIX_PROVEDOR=mercadopago`, seção "Pix" abaixo); crédito, débito e dinheiro continuam **simulados**,
-> e não há emissão de nota fiscal (só recibo sem valor fiscal, Fase 6). Com o padrão `PIX_PROVEDOR=automatico`, o Pix também é simulado: aprova na hora, sem cobrança.
+> e a nota fiscal só existe em modo de teste (`NFCE_PROVEDOR=simulado`; o real, `focus`, exige contrato, certificado A1 e o contador; veja `deploy/.env.example`). Sem isso há só o recibo sem valor fiscal (Fase 6). Com o padrão `PIX_PROVEDOR=automatico`, o Pix também é simulado: aprova na hora, sem cobrança.
 > Esta pilha serve para uso interno e piloto com a equipe.
 
 ## O que a máquina precisa

@@ -164,7 +164,7 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 125 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
+cd pedidos-api   && ./mvnw test                 # 137 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
 cd pagamentos-py && python -m unittest -v       # 31 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
 cd front         && npm run lint                # oxlint
 node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
@@ -206,7 +206,7 @@ O projeto foi construído em atos; cada branch guarda um marco:
 
 Não há pagamento real (o Pagamentos só simula) nem entrega: a loja é física, com retirada no balcão. O login é por e-mail e senha (BCrypt, token de 24 h no banco, limite de tentativas), sem recuperação de senha por e-mail e sem autenticação em dois fatores.
 O Postgres e o Kafka exigem senha (`infra/.env`) e só aceitam conexões locais (`127.0.0.1`); o painel do Kafka não tem login próprio. O Kafka usa SASL/PLAIN sem TLS, adequado a rede local ou privada, não à internet.
-Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plano em fases abaixo.
+Ainda não existem a hospedagem de verdade, a nota fiscal real (só simulada) nem o pagamento real: veja o plano em fases abaixo.
 
 ## Rumo à produção (em fases)
 
@@ -223,6 +223,7 @@ Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plan
 | 4c. Publicar | `deploy/atualizar.sh` (backup antes, volta sozinho se falhar) e manual de operação (`deploy/OPERACAO.md`) | feita |
 | 5. Pix real | Cobrança Pix com QR na tela, confirmação por webhook assinado + conferência periódica; Mercado Pago (ou `simulado` para testar) | feita, falta exercitar com a conta Mercado Pago |
 | 6. Nota fiscal | Parte sem custo feita: dados fiscais (loja, NCM, CFOP) e recibo imprimível **sem valor fiscal**. A emissão de NFC-e (Focus NFe, certificado A1, credenciamento na SEFAZ, tributação com o contador) fica para quando você contratar | parcial (recibo feito; emissão pendente) |
+| 6b. NFC-e (simulada e Focus NFe) | `POST /pedidos/{id}/nfce` com `NFCE_PROVEDOR`: `desligado` (padrão), `simulado` (teste) ou `focus` (real; homologação por padrão, produção só com `FOCUS_AMBIENTE=producao`). Cancelar o pedido cancela a nota (até 30 min). Falta o contrato Focus, o certificado A1 e a tributação com o contador | feita em simulado; real escrito conforme a documentação, **não testado** com conta |
 | 7a. Cartão na maquininha | `CARTAO_MODO=maquininha`: o atendente confirma na tela o que a maquininha respondeu (aprovado/recusado, NSU opcional) via `PUT /pedidos/{id}/pagamento` | feita |
 | 7b. Estorno | O gerente registra a devolução do dinheiro de pedido pago e cancelado (`PUT /pedidos/{id}/estorno`, auditoria `PAGAMENTO_ESTORNADO`); o sistema não move dinheiro | feita (Pix automático pela API do provedor fica para depois) |
 | 7c. Estorno automático do Pix | Cancelar pedido Pix pago pede a devolução ao provedor (tópico `pagamentos-estornos`; Mercado Pago ou `simulado`) e marca `estornadoEm` sozinho; sem provedor ou se falhar, o gerente registra à mão | feita, falta exercitar com a conta Mercado Pago |

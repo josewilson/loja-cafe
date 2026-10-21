@@ -101,7 +101,7 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
 `PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`, `INSUMO_CRIADO`, `INSUMO_ALTERADO`, `FICHA_ALTERADA`, `INSUMO_AJUSTADO`
-(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6), `RECIBO_EMITIDO` (Fase 6), `PAGAMENTO_CONFIRMADO` e `PAGAMENTO_RECUSADO` (Fase 7a), `PAGAMENTO_ESTORNADO` (Fase 7b).
+(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6), `RECIBO_EMITIDO` (Fase 6), `PAGAMENTO_CONFIRMADO` e `PAGAMENTO_RECUSADO` (Fase 7a), `PAGAMENTO_ESTORNADO` (Fase 7b), `NFCE_EMITIDA`, `NFCE_REJEITADA` e `NFCE_CANCELADA` (Fase 6b).
 
 ## Cardápio e pedidos (exigem token)
 
@@ -137,6 +137,15 @@ o `ADMIN` vê qualquer um. Pedido inexistente: `404`. Cada chamada grava `RECIBO
   "criadoEm": "2026-10-17T16:05:00Z", "aviso": "Sem valor fiscal" }
 ```
 Os campos de `loja` são `null` quando os dados fiscais ainda não foram informados.
+
+### POST /pedidos/{id}/nfce  (`ATENDENTE`, `GERENTE`)
+Fase 6b: emite a NFC-e (nota fiscal de consumidor) de um pedido. Sem corpo. Depende de `NFCE_PROVEDOR` (`desligado` por padrão, `simulado` para teste, `focus` = Focus NFe real).
+- Só pedido `PAGO` e não `CANCELADO`; senão `409`. Provedor desligado, loja sem CNPJ ou produto sem NCM/CFOP: `409` dizendo o que falta. Outra loja: `403`. Inexistente: `404`.
+- Repetir é seguro: nota já `AUTORIZADA` volta como está; `REJEITADA` tenta de novo. Provedor fora do ar ou token errado: `502`.
+- `200` com o pedido, que ganha `nfceStatus` (`AUTORIZADA`, `REJEITADA` ou `CANCELADA`; `null` antes da emissão), `nfceNumero`, `nfceChave`, `nfceUrl` (DANFCE) e `nfceMensagem`.
+  Rejeição pela SEFAZ não é erro HTTP: vem `200` com `nfceStatus = "REJEITADA"` e o motivo em `nfceMensagem`. Auditoria: `NFCE_EMITIDA` ou `NFCE_REJEITADA`.
+- Cancelar o pedido (`PUT /pedidos/{id}/cancelar`) com NFC-e `AUTORIZADA` cancela a nota junto (auditoria `NFCE_CANCELADA`), mas só nos **30 minutos** seguintes à emissão
+  e o motivo precisa de 15 caracteres ou mais para ir ao fisco (menor: usa um texto padrão). Passou do prazo, ou o provedor recusou: `409` e o pedido não é cancelado.
 
 ### GET /pedidos?limite=N  (todos os papéis)
 Pedidos **da loja do usuário**, **mais novo primeiro** (padrão 100, de 1 a 200). O `ADMIN` vê todas as lojas (`?lojaId=` filtra). Resposta `200`:

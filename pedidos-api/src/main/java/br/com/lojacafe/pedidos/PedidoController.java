@@ -40,9 +40,11 @@ public class PedidoController {
     private final AuditoriaRepository auditor;
     private final FichaController consumo;
     private final LojaRepository lojas;
+    private final Nfce nfce;
 
     public PedidoController(PedidoRepository repository, ProdutoRepository produtos, EstoqueLojaRepository estoque,
-                            PagamentosKafka eventos, AuditoriaRepository auditor, FichaController consumo, LojaRepository lojas) {
+                            PagamentosKafka eventos, AuditoriaRepository auditor, FichaController consumo, LojaRepository lojas, Nfce nfce) {
+        this.nfce = nfce;
         this.lojas = lojas;
         this.consumo = consumo;
         this.repository = repository;
@@ -115,6 +117,44 @@ public class PedidoController {
         return new Recibo(p.getId(), new LojaRecibo(l.getNome(), l.getRazaoSocial(), l.getCnpj(), l.getInscricaoEstadual(), l.getEndereco()),
                 p.getCliente(), p.getAtendente(), p.getItens(), p.getValor(), p.getFormaPagamento(), p.getParcelas(), p.getCriadoEm(),
                 "Sem valor fiscal");
+    }
+
+    /**
+     * Emite a NFC-e de um pedido pago e não cancelado (Fase 6b). Repetir é seguro: nota já autorizada volta como está; rejeitada tenta de novo.
+     * Exige CNPJ da loja e NCM/CFOP de cada produto (quem define é o contador). Provedor desligado: 409.
+     */
+    @PostMapping("/{id}/nfce")
+    @Papeis({Papel.ATENDENTE, Papel.GERENTE})
+    @Transactional
+    public Pedido emitirNfce(@RequestAttribute(AuthController.USUARIO) Usuario usuario, @PathVariable Long id) {
+        if (!nfce.ligada()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A emissão de NFC-e está desligada (NFCE_PROVEDOR)");
+        }
+        Pedido p = repository.findWithLockById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Pedido não existe"));
+        AuthController.escopo(usuario, p.getLojaId());
+        if (p.getStatus() != StatusPedido.PAGO || p.getPreparo() == Preparo.CANCELADO) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Só se emite NFC-e de pedido pago e não cancelado");
+        }
+        if ("AUTORIZADA".equals(p.getNfceStatus())) {
+            return p;
+        }
+        Loja loja = lojas.findById(p.getLojaId()).orElseThrow();
+        if (loja.getCnpj() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A loja ainda não tem CNPJ (dados fiscais)");
+        }
+        var catalogo = new java.util.HashMap<Long, Produto>();
+        produtos.findAllById(p.getItens().stream().map(ItemPedido::getProdutoId).toList()).forEach(x -> catalogo.put(x.getId(), x));
+        for (ItemPedido i : p.getItens()) {
+            Produto produto = catalogo.get(i.getProdutoId());
+            if (produto == null || produto.getNcm() == null || produto.getCfop() == null) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, i.getItem() + " está sem NCM ou CFOP no cardápio");
+            }
+        }
+        Nfce.Resultado resultado = nfce.emitir(p, loja, catalogo);
+        p.registrarNfce(resultado);
+        auditor.registrar(usuario, p.getLojaId(), resultado.status().equals("AUTORIZADA") ? "NFCE_EMITIDA" : "NFCE_REJEITADA", "Pedido", id,
+                resultado.status().equals("AUTORIZADA") ? "nota " + resultado.numero() : resultado.mensagem());
+        return repository.save(p);
     }
 
     private static ResponseStatusException erro(String mensagem) {

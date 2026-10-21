@@ -24,10 +24,12 @@ public class CozinhaController {
     private final AuditoriaRepository auditor;
     private final FichaController consumo;
     private final PagamentosKafka pagamentos;
+    private final Nfce nfce;
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(CozinhaController.class);
 
     public CozinhaController(PedidoRepository repository, EstoqueLojaRepository estoque, AuditoriaRepository auditor, FichaController consumo,
-                              PagamentosKafka pagamentos) {
+                              PagamentosKafka pagamentos, Nfce nfce) {
+        this.nfce = nfce;
         this.pagamentos = pagamentos;
         this.consumo = consumo;
         this.repository = repository;
@@ -109,6 +111,16 @@ public class CozinhaController {
         Preparo antes = pedido.getPreparo();
         if (!pedido.cancelar()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Este pedido não pode mais ser cancelado");
+        }
+        String justificativa = corpo == null || corpo.motivo() == null ? "" : corpo.motivo().trim();
+        if ("AUTORIZADA".equals(pedido.getNfceStatus())) {
+            // Nota fiscal emitida: só se cancela o pedido junto com a nota, e a SEFAZ só aceita nos primeiros 30 minutos.
+            if (!pedido.nfceCancelavel()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "A NFC-e deste pedido passou de 30 minutos: cancele a nota com o contador antes");
+            }
+            nfce.cancelar(pedido, justificativa.length() >= 15 ? justificativa : "Cancelamento da venda a pedido do cliente");
+            pedido.cancelarNfce();
+            auditor.registrar(usuario, pedido.getLojaId(), "NFCE_CANCELADA", "Pedido", id, null);
         }
         // A trava da linha garante que só um cancelamento chega aqui: o estoque volta uma única vez.
         pedido.getItens().forEach(i -> estoque.repor(pedido.getLojaId(), i.getProdutoId(), i.getQuantidade()));

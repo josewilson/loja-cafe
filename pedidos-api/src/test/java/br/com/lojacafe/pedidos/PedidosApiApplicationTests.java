@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.ResultActions;
         "lojacafe.admin.email=admin@teste.com", "lojacafe.admin.senha=admin12345",
         "lojacafe.bcrypt-custo=4", // BCrypt no custo mínimo: nos testes a velocidade importa mais que a força (em produção o padrão é 10)
         // Nos testes o Hibernate cria as tabelas no H2 e o cardápio vem de seed-teste.sql (as migrações são para o Postgres).
+        "lojacafe.nfce.provedor=simulado", // NFC-e de mentira (Fase 6b)
         "spring.flyway.enabled=false",
         "spring.jpa.hibernate.ddl-auto=create-drop",
         "spring.jpa.defer-datasource-initialization=true",
@@ -551,6 +552,53 @@ class PedidosApiApplicationTests {
         PUT(t, "/pedidos/999999/pagamento", "{\"aprovado\":true}").andExpect(status().isNotFound());
         PUT(token(Papel.GERENTE, loja), "/pedidos/" + cartao + "/pagamento", "{\"aprovado\":true}").andExpect(status().isOk()); // gerente também pode
         GET(token(Papel.GERENTE, loja), "/auditoria").andExpect(jsonPath("$[?(@.acao=='PAGAMENTO_CONFIRMADO' && @.entidadeId=='" + cartao + "')]").isNotEmpty());
+    }
+
+    // ---------- NFC-e (Fase 6b) ----------
+
+    /** Produto com NCM e CFOP e 10 unidades na loja. */
+    private long produtoFiscal(long loja) throws Exception {
+        String corpo = POST(admin(), "/cardapio", "{\"nome\":\"Fiscal " + UUID.randomUUID() + "\",\"emoji\":\"☕\",\"preco\":7.00,\"ncm\":\"21011110\",\"cfop\":\"5102\"}")
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(corpo, "$.id")).longValue();
+        PUT(admin(), "/lojas/" + loja + "/estoque/" + id, "{\"quantidade\":10}").andExpect(status().isOk());
+        return id;
+    }
+
+    @Test
+    void emiteNfceSimuladaDePedidoPagoERepetirEhSeguro() throws Exception {
+        long loja = novaLoja();
+        String atendente = token(Papel.ATENDENTE, loja);
+        long fiscal = produtoFiscal(loja);
+        long id = lancarPago(atendente, (int) fiscal, 2);
+
+        POST(atendente, "/pedidos/" + id + "/nfce", "").andExpect(status().isConflict());                 // loja sem CNPJ
+        PUT(admin(), "/lojas/" + loja, "{\"cnpj\":\"11222333000181\"}").andExpect(status().isOk());
+        long semNcm = lancarPago(atendente, 3, 1);
+        POST(atendente, "/pedidos/" + semNcm + "/nfce", "").andExpect(status().isConflict());             // produto sem NCM/CFOP
+        POST(atendente, "/pedidos/" + lancar(atendente, (int) fiscal, 1) + "/nfce", "").andExpect(status().isConflict()); // ainda não pago
+        POST(token(Papel.ATENDENTE, novaLoja()), "/pedidos/" + id + "/nfce", "").andExpect(status().isForbidden()); // outra loja
+        POST(atendente, "/pedidos/999999/nfce", "").andExpect(status().isNotFound());
+        POST(null, "/pedidos/" + id + "/nfce", "").andExpect(status().isUnauthorized());
+        POST(token(Papel.COZINHA, loja), "/pedidos/" + id + "/nfce", "").andExpect(status().isForbidden());
+
+        POST(atendente, "/pedidos/" + id + "/nfce", "").andExpect(status().isOk())
+                .andExpect(jsonPath("$.nfceStatus").value("AUTORIZADA")).andExpect(jsonPath("$.nfceNumero").value(String.valueOf(id)));
+        POST(atendente, "/pedidos/" + id + "/nfce", "").andExpect(status().isOk()).andExpect(jsonPath("$.nfceStatus").value("AUTORIZADA"));
+        GET(token(Papel.GERENTE, loja), "/auditoria").andExpect(jsonPath("$[?(@.acao=='NFCE_EMITIDA' && @.entidadeId=='" + id + "')]", hasSize(1))); // só uma vez
+    }
+
+    @Test
+    void cancelarPedidoComNfceCancelaANotaJunto() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        PUT(admin(), "/lojas/" + loja, "{\"cnpj\":\"11222333000181\"}").andExpect(status().isOk());
+        long id = lancarPago(gerente, (int) produtoFiscal(loja), 1);
+        POST(gerente, "/pedidos/" + id + "/nfce", "").andExpect(status().isOk());
+
+        PUT(gerente, "/pedidos/" + id + "/cancelar", "{}").andExpect(status().isOk()).andExpect(jsonPath("$.nfceStatus").value("CANCELADA"));
+        GET(gerente, "/auditoria").andExpect(jsonPath("$[?(@.acao=='NFCE_CANCELADA' && @.entidadeId=='" + id + "')]", hasSize(1)));
+        POST(gerente, "/pedidos/" + id + "/nfce", "").andExpect(status().isConflict());                    // cancelado: sem nota nova
     }
 
     // ---------- estorno (Fase 7b) ----------

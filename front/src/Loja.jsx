@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { buscarRecibo, cancelarPedido, confirmarPagamento, criarPedido, estornarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
+import { buscarRecibo, cancelarPedido, confirmarPagamento, criarPedido, emitirNfce, estornarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
 import Topo from './Topo'
 
 const reais = (n) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -168,6 +168,18 @@ export default function Loja({ sessao, aoSair, topo }) {
     setErro(null)
     try {
       await cancelarPedido(p.id)
+      setPedidos(await listarPedidos(20))
+    } catch (falha) {
+      if (falha.status === 401) return aoSair()
+      setErro(falha)
+    }
+  }
+
+  // NFC-e: só funciona com NFCE_PROVEDOR ligado na API (senão ela responde 409 e o aviso aparece).
+  async function emitirNota(p) {
+    setErro(null)
+    try {
+      await emitirNfce(p.id)
       setPedidos(await listarPedidos(20))
     } catch (falha) {
       if (falha.status === 401) return aoSair()
@@ -530,6 +542,13 @@ export default function Loja({ sessao, aoSair, topo }) {
                 {p.status === 'PAGO' && p.preparo !== 'CANCELADO' && (
                   <div className="acoes">
                     <button type="button" className="link" onClick={() => imprimirRecibo(p)}>Imprimir recibo</button>
+                    {p.nfceStatus === 'AUTORIZADA' ? (
+                      <span>NFC-e {p.nfceNumero} autorizada{p.nfceUrl?.startsWith('http') && <> · <a href={p.nfceUrl} target="_blank" rel="noreferrer">ver nota</a></>}</span>
+                    ) : (
+                      <button type="button" className="link" onClick={() => emitirNota(p)}>
+                        {p.nfceStatus === 'REJEITADA' ? `Emitir NFC-e de novo (${p.nfceMensagem})` : 'Emitir NFC-e'}
+                      </button>
+                    )}
                   </div>
                 )}
                 {papel === 'GERENTE' && p.status !== 'RECUSADO' && (p.preparo === 'NA_FILA' || p.preparo === 'PREPARANDO') && (

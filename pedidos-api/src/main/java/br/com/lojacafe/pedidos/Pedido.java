@@ -44,6 +44,14 @@ public class Pedido {
     private Instant criadoEm;
     // Fase 7b: quando o dinheiro de um pedido pago e cancelado foi devolvido ao cliente (nulo = não estornado).
     private Instant estornadoEm;
+    // NFC-e (Fase 6b): nulo até a primeira tentativa de emissão.
+    private String nfceStatus;
+    private String nfceNumero;
+    private String nfceChave;
+    private String nfceUrl;
+    private String nfceMensagem;
+    @JsonIgnore
+    private Instant nfceEmitidaEm;
     // Cobrança Pix (só PIX): chega no evento AGUARDANDO do Pagamentos e some da resposta quando o pedido é concluído.
     @JsonIgnore
     @Column(columnDefinition = "text")
@@ -142,6 +150,25 @@ public class Pedido {
         return true;
     }
 
+    /** Guarda o resultado da emissão (AUTORIZADA ou REJEITADA). A hora conta o prazo de 30 minutos para cancelar. */
+    public void registrarNfce(Nfce.Resultado r) {
+        this.nfceStatus = r.status();
+        this.nfceNumero = r.numero();
+        this.nfceChave = r.chave();
+        this.nfceUrl = r.url();
+        this.nfceMensagem = r.mensagem();
+        this.nfceEmitidaEm = Instant.now();
+    }
+
+    public void cancelarNfce() {
+        this.nfceStatus = "CANCELADA";
+    }
+
+    /** Há nota autorizada e ainda dentro do prazo em que a SEFAZ aceita cancelar. */
+    public boolean nfceCancelavel() {
+        return "AUTORIZADA".equals(nfceStatus) && nfceEmitidaEm.plus(Nfce.PRAZO_CANCELAMENTO).isAfter(Instant.now());
+    }
+
     public Long getId() { return id; }
     public Long getLojaId() { return lojaId; }
     public String getAtendente() { return atendente; }
@@ -158,4 +185,9 @@ public class Pedido {
     public String getNsu() { return nsu; }
     public Instant getCriadoEm() { return criadoEm; }
     public Instant getEstornadoEm() { return estornadoEm; }
+    public String getNfceStatus() { return nfceStatus; }
+    public String getNfceNumero() { return nfceNumero; }
+    public String getNfceChave() { return nfceChave; }
+    public String getNfceUrl() { return nfceUrl; }
+    public String getNfceMensagem() { return nfceMensagem; }
 }
