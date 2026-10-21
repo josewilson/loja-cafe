@@ -120,6 +120,21 @@ public class CozinhaController {
         return repository.save(pedido);
     }
 
+    /** Registra que o dinheiro do pedido pago e cancelado foi devolvido (na maquininha ou no app do Pix). O sistema não move dinheiro. */
+    @PutMapping("/pedidos/{id}/estorno")
+    @Papeis(Papel.GERENTE)
+    @Transactional
+    public Pedido estornar(@RequestAttribute(AuthController.USUARIO) Usuario usuario, @PathVariable Long id,
+                           @Valid @RequestBody(required = false) Cancelamento corpo) {
+        Pedido pedido = carregar(usuario, id);
+        if (!pedido.estornar()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Só se estorna pedido pago e cancelado, uma vez");
+        }
+        String motivo = corpo == null || corpo.motivo() == null ? "" : corpo.motivo().trim();
+        auditor.registrar(usuario, pedido.getLojaId(), "PAGAMENTO_ESTORNADO", "Pedido", id, motivo.isEmpty() ? null : motivo);
+        return repository.save(pedido);
+    }
+
     /** Lê o pedido com trava, e só o da loja do usuário (outra loja é 403). */
     private Pedido carregar(Usuario usuario, Long id) {
         Pedido pedido = repository.findWithLockById(id)

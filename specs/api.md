@@ -101,7 +101,7 @@ Quem fez o quê e quando, do mais novo ao mais antigo (padrão 100, de 1 a 500).
 ```
 Ações: `LOGIN`, `LOGIN_FALHOU`, `LOJA_CRIADA`, `USUARIO_CRIADO`, `USUARIO_ATIVO_ALTERADO`, `ESTOQUE_AJUSTADO`, `PEDIDO_CRIADO`,
 `PREPARO_ALTERADO`, `PEDIDO_CANCELADO`, `CAIXA_FECHADO`, `PRODUTO_CRIADO`, `PRODUTO_ALTERADO`, `INSUMO_CRIADO`, `INSUMO_ALTERADO`, `FICHA_ALTERADA`, `INSUMO_AJUSTADO`
-(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6), `RECIBO_EMITIDO` (Fase 6), `PAGAMENTO_CONFIRMADO` e `PAGAMENTO_RECUSADO` (Fase 7a).
+(as cinco primeiras são da rede, sem loja: só o `ADMIN` as vê na auditoria; `INSUMO_AJUSTADO` é da loja), `PEDIDOS_REENFILEIRADOS` (da rede), `LOJA_ALTERADA` (Fase 6), `RECIBO_EMITIDO` (Fase 6), `PAGAMENTO_CONFIRMADO` e `PAGAMENTO_RECUSADO` (Fase 7a), `PAGAMENTO_ESTORNADO` (Fase 7b).
 
 ## Cardápio e pedidos (exigem token)
 
@@ -265,6 +265,12 @@ Corpo opcional: `{ "motivo": "cliente desistiu" }` (até 140, vai para a auditor
 e o pagamento não foi `RECUSADO`. Devolve o estoque da loja (uma única vez) e grava `PEDIDO_CANCELADO`.
 Os **insumos** só voltam se o pedido ainda estava `NA_FILA`; em `PREPARANDO` contam como perda (veja *Insumos e ficha técnica*).
 Já `PRONTO`, `RETIRADO`, `CANCELADO`, `RECUSADO` ou já contado num fechamento de caixa: `409`. Outra loja: `403`. `200` com o pedido.
+
+### PUT /pedidos/{id}/estorno  (`GERENTE`)
+Fase 7b: registra que o dinheiro de um pedido **cancelado que já estava `PAGO`** foi devolvido ao cliente. O sistema **não move dinheiro**: o gerente devolve
+na maquininha (cartão), no app do banco ou do provedor (Pix) ou no caixa (dinheiro) e anota aqui. Corpo opcional: `{ "motivo": "devolvido no Pix" }` (até 140, vai para a auditoria).
+- Pedido que não está `PAGO`, que não está `CANCELADO` ou que já foi estornado: `409`. Outra loja: `403`. Inexistente: `404`.
+- `200` com o pedido, que ganha o campo `estornadoEm` (`null` até o estorno). Auditoria: `PAGAMENTO_ESTORNADO`.
 
 ## Painel do gerente: vendas e caixa
 "Venda" = pedido `PAGO` e não `CANCELADO`. Valores em reais. `forma` = `PIX`, `CREDITO`, `DEBITO` ou `DINHEIRO`.

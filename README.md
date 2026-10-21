@@ -164,7 +164,7 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 121 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
+cd pedidos-api   && ./mvnw test                 # 123 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
 cd pagamentos-py && python -m unittest -v       # 27 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
 cd front         && npm run lint                # oxlint
 node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
@@ -224,6 +224,7 @@ Ainda não existem a hospedagem, a nota fiscal nem o pagamento real: veja o plan
 | 5. Pix real | Cobrança Pix com QR na tela, confirmação por webhook assinado + conferência periódica; Mercado Pago (ou `simulado` para testar) | feita, falta exercitar com a conta Mercado Pago |
 | 6. Nota fiscal | Parte sem custo feita: dados fiscais (loja, NCM, CFOP) e recibo imprimível **sem valor fiscal**. A emissão de NFC-e (Focus NFe, certificado A1, credenciamento na SEFAZ, tributação com o contador) fica para quando você contratar | parcial (recibo feito; emissão pendente) |
 | 7a. Cartão na maquininha | `CARTAO_MODO=maquininha`: o atendente confirma na tela o que a maquininha respondeu (aprovado/recusado, NSU opcional) via `PUT /pedidos/{id}/pagamento` | feita |
+| 7b. Estorno | O gerente registra a devolução do dinheiro de pedido pago e cancelado (`PUT /pedidos/{id}/estorno`, auditoria `PAGAMENTO_ESTORNADO`); o sistema não move dinheiro | feita (Pix automático pela API do provedor fica para depois) |
 
 ## Cuidados
 

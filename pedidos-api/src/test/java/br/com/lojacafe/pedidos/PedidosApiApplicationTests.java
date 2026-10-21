@@ -552,6 +552,34 @@ class PedidosApiApplicationTests {
         GET(token(Papel.GERENTE, loja), "/auditoria").andExpect(jsonPath("$[?(@.acao=='PAGAMENTO_CONFIRMADO' && @.entidadeId=='" + cartao + "')]").isNotEmpty());
     }
 
+    // ---------- estorno (Fase 7b) ----------
+
+    @Test
+    void gerenteRegistraOEstornoDePedidoPagoECancelado() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        String atendente = token(Papel.ATENDENTE, loja);
+        long id = lancarPago(atendente, 3, 1);
+        PUT(gerente, "/pedidos/" + id + "/estorno", "{}").andExpect(status().isConflict());          // ainda não cancelado
+        PUT(gerente, "/pedidos/" + id + "/cancelar", "{}").andExpect(status().isOk());
+        PUT(atendente, "/pedidos/" + id + "/estorno", "{}").andExpect(status().isForbidden());       // só o gerente
+        PUT(token(Papel.GERENTE, novaLoja()), "/pedidos/" + id + "/estorno", "{}").andExpect(status().isForbidden()); // outra loja
+        PUT(gerente, "/pedidos/" + id + "/estorno", "{\"motivo\":\"devolvido no Pix\"}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.estornadoEm").isNotEmpty());
+        PUT(gerente, "/pedidos/" + id + "/estorno", "{}").andExpect(status().isConflict());          // só uma vez
+        GET(gerente, "/auditoria").andExpect(jsonPath("$[?(@.acao=='PAGAMENTO_ESTORNADO' && @.entidadeId=='" + id + "')].detalhe", contains("devolvido no Pix")));
+        PUT(gerente, "/pedidos/999999/estorno", "{}").andExpect(status().isNotFound());
+    }
+
+    @Test
+    void pedidoNaoPagoNaoTemEstorno() throws Exception {
+        long loja = novaLoja();
+        String gerente = token(Papel.GERENTE, loja);
+        long aguardando = lancar(token(Papel.ATENDENTE, loja), 3, 1);
+        PUT(gerente, "/pedidos/" + aguardando + "/cancelar", "{}").andExpect(status().isOk());      // cancelado sem nunca ter sido pago
+        PUT(gerente, "/pedidos/" + aguardando + "/estorno", "{}").andExpect(status().isConflict());
+    }
+
     // ---------- pedidos ----------
 
     @Test

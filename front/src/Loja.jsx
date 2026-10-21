@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { buscarRecibo, cancelarPedido, confirmarPagamento, criarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
+import { buscarRecibo, cancelarPedido, confirmarPagamento, criarPedido, estornarPedido, listarOpcoes, listarPedidos, listarProdutos } from './api'
 import Topo from './Topo'
 
 const reais = (n) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -168,6 +168,19 @@ export default function Loja({ sessao, aoSair, topo }) {
     setErro(null)
     try {
       await cancelarPedido(p.id)
+      setPedidos(await listarPedidos(20))
+    } catch (falha) {
+      if (falha.status === 401) return aoSair()
+      setErro(falha)
+    }
+  }
+
+  // Estorno: o gerente já devolveu o dinheiro fora do sistema e anota aqui.
+  async function estornar(p) {
+    if (!window.confirm(`Confirma que o dinheiro do pedido #${p.id} (${reais(p.valor)}) já foi devolvido a ${p.cliente}?`)) return
+    setErro(null)
+    try {
+      await estornarPedido(p.id)
       setPedidos(await listarPedidos(20))
     } catch (falha) {
       if (falha.status === 401) return aoSair()
@@ -522,6 +535,17 @@ export default function Loja({ sessao, aoSair, topo }) {
                 {papel === 'GERENTE' && p.status !== 'RECUSADO' && (p.preparo === 'NA_FILA' || p.preparo === 'PREPARANDO') && (
                   <div className="acoes">
                     <button type="button" className="botao perigo" onClick={() => cancelar(p)}>Cancelar pedido</button>
+                  </div>
+                )}
+                {p.status === 'PAGO' && p.preparo === 'CANCELADO' && (
+                  <div className="acoes">
+                    {p.estornadoEm ? (
+                      <span>Dinheiro devolvido</span>
+                    ) : papel === 'GERENTE' ? (
+                      <button type="button" className="botao perigo" onClick={() => estornar(p)}>Registrar estorno</button>
+                    ) : (
+                      <span>Devolver o dinheiro ao cliente</span>
+                    )}
                   </div>
                 )}
               </li>

@@ -42,6 +42,8 @@ public class Pedido {
     // Comprovante do cartão aprovado na maquininha (opcional, digitado pelo atendente).
     private String nsu;
     private Instant criadoEm;
+    // Fase 7b: quando o dinheiro de um pedido pago e cancelado foi devolvido ao cliente (nulo = não estornado).
+    private Instant estornadoEm;
     // Cobrança Pix (só PIX): chega no evento AGUARDANDO do Pagamentos e some da resposta quando o pedido é concluído.
     @JsonIgnore
     @Column(columnDefinition = "text")
@@ -131,6 +133,15 @@ public class Pedido {
         return true;
     }
 
+    /** Registra a devolução do dinheiro. Só vale em pedido PAGO e CANCELADO que ainda não foi estornado (a devolução em si é feita fora do sistema). */
+    public boolean estornar() {
+        if (status != StatusPedido.PAGO || preparo != Preparo.CANCELADO || estornadoEm != null) {
+            return false;
+        }
+        this.estornadoEm = Instant.now();
+        return true;
+    }
+
     public Long getId() { return id; }
     public Long getLojaId() { return lojaId; }
     public String getAtendente() { return atendente; }
@@ -146,4 +157,5 @@ public class Pedido {
     public String getProcessadoPor() { return processadoPor; }
     public String getNsu() { return nsu; }
     public Instant getCriadoEm() { return criadoEm; }
+    public Instant getEstornadoEm() { return estornadoEm; }
 }
