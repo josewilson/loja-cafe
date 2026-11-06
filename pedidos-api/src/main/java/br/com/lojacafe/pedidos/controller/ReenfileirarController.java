@@ -1,6 +1,7 @@
 package br.com.lojacafe.pedidos.controller;
 
-import br.com.lojacafe.pedidos.controller.Porteiro.Papeis;
+import br.com.lojacafe.pedidos.config.AuthInterceptor;
+import br.com.lojacafe.pedidos.config.AuthInterceptor.Papeis;
 import br.com.lojacafe.pedidos.model.*;
 import br.com.lojacafe.pedidos.service.*;
 import org.springframework.web.bind.annotation.*;
@@ -17,7 +18,7 @@ public class ReenfileirarController {
 
     @PostMapping("/pedidos/reenfileirar")
     @Papeis(Papel.ADMIN)
-    public ReenfileirarService.Resultado reenfileirar(@RequestAttribute(Porteiro.USUARIO) Usuario quem, @RequestParam(defaultValue = "10") int minutos) {
+    public ReenfileirarService.Resultado reenfileirar(@RequestAttribute(AuthInterceptor.USUARIO) Usuario quem, @RequestParam(defaultValue = "10") int minutos) {
         return reenfileirar.reenfileirar(quem, minutos);
     }
 }

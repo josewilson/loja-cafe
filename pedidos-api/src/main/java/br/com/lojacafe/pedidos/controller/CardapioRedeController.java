@@ -1,6 +1,7 @@
 package br.com.lojacafe.pedidos.controller;
 
-import br.com.lojacafe.pedidos.controller.Porteiro.Papeis;
+import br.com.lojacafe.pedidos.config.AuthInterceptor;
+import br.com.lojacafe.pedidos.config.AuthInterceptor.Papeis;
 import br.com.lojacafe.pedidos.model.*;
 import br.com.lojacafe.pedidos.service.*;
 import jakarta.validation.Valid;
@@ -29,13 +30,13 @@ public class CardapioRedeController {
     @PostMapping
     @Papeis(Papel.ADMIN)
     @ResponseStatus(HttpStatus.CREATED)
-    public CardapioRedeService.ProdutoVista criar(@RequestAttribute(Porteiro.USUARIO) Usuario quem, @Valid @RequestBody CardapioRedeService.DadosProduto dados) {
+    public CardapioRedeService.ProdutoVista criar(@RequestAttribute(AuthInterceptor.USUARIO) Usuario quem, @Valid @RequestBody CardapioRedeService.DadosProduto dados) {
         return cardapio.criar(quem, dados);
     }
 
     @PutMapping("/{id}")
     @Papeis(Papel.ADMIN)
-    public CardapioRedeService.ProdutoVista alterar(@RequestAttribute(Porteiro.USUARIO) Usuario quem, @PathVariable Long id, @Valid @RequestBody CardapioRedeService.DadosProduto dados) {
+    public CardapioRedeService.ProdutoVista alterar(@RequestAttribute(AuthInterceptor.USUARIO) Usuario quem, @PathVariable Long id, @Valid @RequestBody CardapioRedeService.DadosProduto dados) {
         return cardapio.alterar(quem, id, dados);
     }
 }

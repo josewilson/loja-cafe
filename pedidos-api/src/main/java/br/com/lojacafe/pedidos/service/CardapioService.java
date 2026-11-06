@@ -2,6 +2,7 @@ package br.com.lojacafe.pedidos.service;
 
 import br.com.lojacafe.pedidos.model.Extra;
 import br.com.lojacafe.pedidos.model.FormaPagamento;
+import br.com.lojacafe.pedidos.model.ProdutoComEstoque;
 import br.com.lojacafe.pedidos.model.Tamanho;
 import br.com.lojacafe.pedidos.model.Usuario;
 import br.com.lojacafe.pedidos.repository.ProdutoRepository;
@@ -28,7 +29,7 @@ public class CardapioService {
     }
 
     /** Cardápio da rede com o estoque da loja do usuário. O ADMIN (sem loja) escolhe com ?lojaId=. */
-    public List<ProdutoRepository.ProdutoComEstoque> produtos(Usuario usuario,
+    public List<ProdutoComEstoque> produtos(Usuario usuario,
                                             Long lojaId) {
         Long loja = Acesso.escopo(usuario, lojaId);
         if (loja == null) {

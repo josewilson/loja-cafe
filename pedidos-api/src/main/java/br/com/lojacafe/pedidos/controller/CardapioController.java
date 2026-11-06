@@ -1,5 +1,6 @@
 package br.com.lojacafe.pedidos.controller;
 
+import br.com.lojacafe.pedidos.config.AuthInterceptor;
 import br.com.lojacafe.pedidos.model.*;
 import br.com.lojacafe.pedidos.service.*;
 import java.util.List;
@@ -17,7 +18,7 @@ public class CardapioController {
 
     /** Cardápio da rede com o estoque da loja do usuário. O ADMIN (sem loja) escolhe com ?lojaId=. */
     @GetMapping("/produtos")
-    public List<br.com.lojacafe.pedidos.repository.ProdutoRepository.ProdutoComEstoque> produtos(@RequestAttribute(Porteiro.USUARIO) Usuario usuario,
+    public List<ProdutoComEstoque> produtos(@RequestAttribute(AuthInterceptor.USUARIO) Usuario usuario,
                                                                                                @RequestParam(required = false) Long lojaId) {
         return cardapio.produtos(usuario, lojaId);
     }

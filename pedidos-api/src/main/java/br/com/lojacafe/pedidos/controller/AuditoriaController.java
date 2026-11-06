@@ -1,6 +1,7 @@
 package br.com.lojacafe.pedidos.controller;
 
-import br.com.lojacafe.pedidos.controller.Porteiro.Papeis;
+import br.com.lojacafe.pedidos.config.AuthInterceptor;
+import br.com.lojacafe.pedidos.config.AuthInterceptor.Papeis;
 import br.com.lojacafe.pedidos.model.*;
 import br.com.lojacafe.pedidos.service.*;
 import java.util.List;
@@ -20,7 +21,7 @@ public class AuditoriaController {
     /** Do mais novo ao mais antigo (padrão 100, de 1 a 500). O gerente vê só a sua loja; o ADMIN vê tudo (ou filtra por lojaId). */
     @GetMapping
     @Papeis({Papel.ADMIN, Papel.GERENTE})
-    public List<Auditoria> listar(@RequestAttribute(Porteiro.USUARIO) Usuario quem, @RequestParam(defaultValue = "100") int limite, @RequestParam(required = false) Long lojaId) {
+    public List<Auditoria> listar(@RequestAttribute(AuthInterceptor.USUARIO) Usuario quem, @RequestParam(defaultValue = "100") int limite, @RequestParam(required = false) Long lojaId) {
         return auditoria.listar(quem, limite, lojaId);
     }
 }

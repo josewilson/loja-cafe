@@ -1,6 +1,7 @@
 package br.com.lojacafe.pedidos.controller;
 
-import br.com.lojacafe.pedidos.controller.Porteiro.Papeis;
+import br.com.lojacafe.pedidos.config.AuthInterceptor;
+import br.com.lojacafe.pedidos.config.AuthInterceptor.Papeis;
 import br.com.lojacafe.pedidos.model.Papel;
 import br.com.lojacafe.pedidos.model.Pedido;
 import br.com.lojacafe.pedidos.model.Preparo;
@@ -27,7 +28,7 @@ public class CozinhaController {
     }
 
     @GetMapping("/cozinha")
-    public List<Pedido> fila(@RequestAttribute(Porteiro.USUARIO) Usuario usuario,
+    public List<Pedido> fila(@RequestAttribute(AuthInterceptor.USUARIO) Usuario usuario,
                              @RequestParam(defaultValue = "100") int limite,
                              @RequestParam(required = false) Long lojaId) {
         return pedidos.fila(usuario, limite, lojaId);
@@ -35,28 +36,28 @@ public class CozinhaController {
 
     @PutMapping("/pedidos/{id}/preparo")
     @Papeis({Papel.COZINHA, Papel.GERENTE, Papel.ATENDENTE})
-    public Pedido mudarPreparo(@RequestAttribute(Porteiro.USUARIO) Usuario usuario,
+    public Pedido mudarPreparo(@RequestAttribute(AuthInterceptor.USUARIO) Usuario usuario,
                                @PathVariable Long id, @Valid @RequestBody NovoPreparo corpo) {
         return pedidos.mudarPreparo(usuario, id, corpo.preparo());
     }
 
     @PutMapping("/pedidos/{id}/pagamento")
     @Papeis({Papel.ATENDENTE, Papel.GERENTE})
-    public Pedido confirmarPagamento(@RequestAttribute(Porteiro.USUARIO) Usuario usuario, @PathVariable Long id,
+    public Pedido confirmarPagamento(@RequestAttribute(AuthInterceptor.USUARIO) Usuario usuario, @PathVariable Long id,
                                      @Valid @RequestBody Pagamento corpo) {
         return pedidos.confirmarPagamento(usuario, id, corpo.aprovado(), corpo.nsu());
     }
 
     @PutMapping("/pedidos/{id}/cancelar")
     @Papeis(Papel.GERENTE)
-    public Pedido cancelar(@RequestAttribute(Porteiro.USUARIO) Usuario usuario, @PathVariable Long id,
+    public Pedido cancelar(@RequestAttribute(AuthInterceptor.USUARIO) Usuario usuario, @PathVariable Long id,
                            @Valid @RequestBody(required = false) Cancelamento corpo) {
         return pedidos.cancelar(usuario, id, corpo == null ? null : corpo.motivo());
     }
 
     @PutMapping("/pedidos/{id}/estorno")
     @Papeis(Papel.GERENTE)
-    public Pedido estornar(@RequestAttribute(Porteiro.USUARIO) Usuario usuario, @PathVariable Long id,
+    public Pedido estornar(@RequestAttribute(AuthInterceptor.USUARIO) Usuario usuario, @PathVariable Long id,
                            @Valid @RequestBody(required = false) Cancelamento corpo) {
         return pedidos.estornar(usuario, id, corpo == null ? null : corpo.motivo());
     }

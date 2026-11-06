@@ -1,6 +1,7 @@
 package br.com.lojacafe.pedidos.controller;
 
-import br.com.lojacafe.pedidos.controller.Porteiro.Papeis;
+import br.com.lojacafe.pedidos.config.AuthInterceptor;
+import br.com.lojacafe.pedidos.config.AuthInterceptor.Papeis;
 import br.com.lojacafe.pedidos.model.Extra;
 import br.com.lojacafe.pedidos.model.Papel;
 import br.com.lojacafe.pedidos.model.Usuario;
@@ -29,7 +30,7 @@ public class FichaController {
 
     @PutMapping("/produtos/{id}")
     @Papeis(Papel.ADMIN)
-    public FichaVista salvarProduto(@RequestAttribute(Porteiro.USUARIO) Usuario quem, @PathVariable Long id, @Valid @RequestBody Ficha ficha) {
+    public FichaVista salvarProduto(@RequestAttribute(AuthInterceptor.USUARIO) Usuario quem, @PathVariable Long id, @Valid @RequestBody Ficha ficha) {
         return fichas.salvarProduto(quem, id, ficha);
     }
 
@@ -41,7 +42,7 @@ public class FichaController {
 
     @PutMapping("/extras/{codigo}")
     @Papeis(Papel.ADMIN)
-    public FichaVista salvarExtra(@RequestAttribute(Porteiro.USUARIO) Usuario quem, @PathVariable Extra codigo, @Valid @RequestBody Ficha ficha) {
+    public FichaVista salvarExtra(@RequestAttribute(AuthInterceptor.USUARIO) Usuario quem, @PathVariable Extra codigo, @Valid @RequestBody Ficha ficha) {
         return fichas.salvarExtra(quem, codigo, ficha);
     }
 }
