@@ -2,7 +2,7 @@ package br.com.lojacafe.pedidos;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import br.com.lojacafe.pedidos.controller.PedidoController.NovoPedido;
+import br.com.lojacafe.pedidos.service.PedidoService.NovoPedido;
 import br.com.lojacafe.pedidos.model.Extra;
 import br.com.lojacafe.pedidos.model.FormaPagamento;
 import br.com.lojacafe.pedidos.model.Tamanho;
