@@ -259,6 +259,7 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 | `pedidos-criados` | `pedidos-api` (via Outbox) | `pagamentos-py` (`pagamentos`), `analytics-py` (`analytics`) |
 | `pagamentos-estornos` | `pedidos-api` (via Outbox) | `pagamentos-py` (`pagamentos`) |
 | `pagamentos-resultados` | `pagamentos-py` | `pedidos-api` (`pedidos-api`), `analytics-py` (`analytics`) |
+| `pagamentos-resultados.DLT` | `pedidos-api` (mensagem que falhou em 3 tentativas) | ninguém: fila para um humano olhar no kafka-ui |
 
 ## Banco de dados e ferramentas
 
@@ -272,7 +273,7 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 147 testes, em classes por área (acesso, pedidos e cozinha, pagamento, caixa, insumos…) sobre um ApiTestBase; H2 em memória, sem Docker
+cd pedidos-api   && ./mvnw test                 # 153 testes: classes por área sobre um ApiTestBase (H2, sem Docker), ArquiteturaTest (ArchUnit) e IntegracaoTest (Postgres + Kafka de verdade via Testcontainers; pulado sem Docker)
 cd pagamentos-py && python -m unittest -v       # 31 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
 cd front         && npm run lint                # oxlint
 node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
@@ -339,9 +340,12 @@ Ainda não existem a hospedagem de verdade, a nota fiscal real (só simulada) ne
 | 8b. Nova senha por link | O gerente (ou ADMIN) gera um link de uso único, válido por 1 hora (`POST /usuarios/{id}/redefinicao`), e entrega à pessoa; ela abre `/?redefinir=...` e escolhe a senha (`POST /auth/redefinir-senha`). Sem e-mail: nada a contratar; as sessões abertas da conta caem | feita |
 | 8c. Link de senha pelo servidor | `scripts/link-senha.sh <email>` gera o link direto no banco, para o ADMIN que esqueceu a senha (ninguém mais pode gerar o dele). Não passa pela API, então não grava auditoria | feita |
 | 9a. Tela de auditoria | Aba "Auditoria" na Gerência: os últimos 200 registros de `GET /auditoria` (quem, ação, item, detalhe), com filtro por ação. Só front | feita |
-| 9b. Arquitetura da API | Camada de serviço (`service/`): os controllers só recebem a requisição e chamam um serviço (`PedidoService`, `CaixaService`…); `AuthController` dividido em `Porteiro` (autenticação, CORS), `ForcaBruta` e `Acesso`; consumo de insumos em `ConsumoInsumos`. **Outbox**: pedido e evento gravados na mesma transação (`evento_saida`), relé entrega ao Kafka em ordem e tenta de novo se o broker cair (pelo menos uma vez); `GET /saude` mostra `"outbox": "atrasada"` (503) se algum evento esperar mais de 60 s. Testes divididos por área | feita |
+| 9b. Arquitetura da API | Camada de serviço (`service/`): os controllers só recebem a requisição e chamam um serviço (`PedidoService`, `CaixaService`…); autenticação separada em `AuthController` (endpoints), `AuthService` (login, sessão, nova senha), `config/AuthInterceptor` (checa toda rota), `config/WebConfig` (CORS, cabeçalhos) e `ForcaBruta`; **ArchUnit** (`ArquiteturaTest`) quebra o build se um controller tocar um repositório ou um serviço tocar um controller; consumo de insumos em `ConsumoInsumos`. **Outbox**: pedido e evento gravados na mesma transação (`evento_saida`), relé entrega ao Kafka em ordem e tenta de novo se o broker cair (pelo menos uma vez); `GET /saude` mostra `"outbox": "atrasada"` (503) se algum evento esperar mais de 60 s. **Dead-letter**: mensagem de `pagamentos-resultados` que falha é tentada 3 vezes e vai para `pagamentos-resultados.DLT` (JSON ilegível vai direto). **Actuator**: `/actuator/health/readiness` e `/actuator/prometheus` na porta interna 8082 (fora do login e não exposta; o `/saude` segue como checagem funcional). Testes divididos por área e de integração com Testcontainers | feita |
 
 ## Cuidados
+
+- **Por que não JWT?** O login devolve um token aleatório e opaco, e o banco guarda só o hash dele (`sessao`). Num PDV isso vale mais que JWT: sair, trocar a senha ou desativar uma conta derruba o acesso **na hora** (JWT só some quando expira, a menos que se monte uma lista de revogação, que é voltar a consultar o banco). O custo, uma consulta por requisição, é pequeno neste porte; se a API crescer a ponto de importar, um cache curto da sessão resolve sem abrir mão da revogação.
+- **Cache do cardápio:** não há. O `GET /produtos` traz o estoque da loja, que muda a cada venda; cachear mostraria estoque velho e deixaria vender o que acabou.
 
 - **Nunca** rode `docker compose down -v`: apaga os eventos do Kafka e os pedidos do Postgres. Para parar, use `docker compose stop`.
 - A porta 8080 não é usada de propósito (costuma estar ocupada). A API roda na **8081**.
