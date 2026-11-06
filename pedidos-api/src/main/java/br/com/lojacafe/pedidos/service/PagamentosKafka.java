@@ -1,6 +1,5 @@
 package br.com.lojacafe.pedidos.service;
 
-import br.com.lojacafe.pedidos.controller.FichaController;
 import br.com.lojacafe.pedidos.model.FormaPagamento;
 import br.com.lojacafe.pedidos.model.Pedido;
 import br.com.lojacafe.pedidos.model.Preparo;
@@ -11,21 +10,19 @@ import br.com.lojacafe.pedidos.repository.PedidoRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.TopicBuilder;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Toda a conversa com o Kafka numa classe só (specs/eventos.md): cria os dois tópicos, anota em pedidos-criados que um pedido
- * nasceu e lê pagamentos-resultados para atualizar o status do pedido.
+ * Toda a conversa com o Kafka numa classe só (specs/eventos.md): cria os tópicos, anota (via Outbox) que um pedido nasceu ou
+ * precisa de estorno e lê pagamentos-resultados para atualizar o status do pedido.
  */
 @Component
 public class PagamentosKafka {
@@ -50,17 +47,17 @@ public class PagamentosKafka {
 
     private static final Logger log = LoggerFactory.getLogger(PagamentosKafka.class);
 
-    private final KafkaTemplate<String, String> kafka;
+    private final Outbox outbox;
     private final JsonMapper json;
     private final PedidoRepository repository;
     private final EstoqueLojaRepository estoque;
-    private final FichaController consumo;
+    private final ConsumoInsumos consumo;
     private final AuditoriaRepository auditor;
 
-    public PagamentosKafka(KafkaTemplate<String, String> kafka, JsonMapper json, PedidoRepository repository,
-                           EstoqueLojaRepository estoque, FichaController consumo, AuditoriaRepository auditor) {
+    public PagamentosKafka(Outbox outbox, JsonMapper json, PedidoRepository repository,
+                           EstoqueLojaRepository estoque, ConsumoInsumos consumo, AuditoriaRepository auditor) {
         this.auditor = auditor;
-        this.kafka = kafka;
+        this.outbox = outbox;
         this.json = json;
         this.repository = repository;
         this.estoque = estoque;
@@ -85,22 +82,20 @@ public class PagamentosKafka {
 
     // ---------- saída: pagamentos-estornos ----------
 
-    /** Pede ao Pagamentos que devolva o Pix de um pedido pago e cancelado. Se falhar, o gerente registra o estorno à mão. */
-    public void publicarEstorno(Pedido p) throws Exception {
-        kafka.send(PAGAMENTOS_ESTORNOS, String.valueOf(p.getId()), json.writeValueAsString(new PedidoEstorno(1, p.getId(), p.getValor())))
-                .get(5, TimeUnit.SECONDS);
+    /** Pede ao Pagamentos que devolva o Pix de um pedido pago e cancelado. Fica na Outbox até o Kafka receber. */
+    public void publicarEstorno(Pedido p) {
+        outbox.enfileirar(PAGAMENTOS_ESTORNOS, String.valueOf(p.getId()), json.writeValueAsString(new PedidoEstorno(1, p.getId(), p.getValor())));
     }
 
     // ---------- saída: pedidos-criados ----------
 
-    public void publicarCriado(Pedido p) throws Exception {
+    /** Anota o pedido novo na Outbox (na transação de quem chama); o relé o entrega ao Kafka. */
+    public void publicarCriado(Pedido p) {
         var itens = p.getItens().stream().map(i -> new ItemEvento(i.getItem(), i.getQuantidade())).toList();
         var evento = new PedidoCriado(3, p.getId(), p.getLojaId(), p.getCliente(), itens, p.getValor(),
                 p.getFormaPagamento(), p.getParcelas(), p.getCriadoEm());
         // Chave = pedidoId: todos os eventos do mesmo pedido caem na mesma partição.
-        // .get() espera o "ok" do broker; se o Kafka estiver fora, a falha aparece aqui.
-        kafka.send(PEDIDOS_CRIADOS, String.valueOf(p.getId()), json.writeValueAsString(evento))
-                .get(5, TimeUnit.SECONDS);
+        outbox.enfileirar(PEDIDOS_CRIADOS, String.valueOf(p.getId()), json.writeValueAsString(evento));
     }
 
     // ---------- entrada: pagamentos-resultados ----------

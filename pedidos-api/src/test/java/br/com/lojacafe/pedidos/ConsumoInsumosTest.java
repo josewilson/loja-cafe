@@ -2,7 +2,7 @@ package br.com.lojacafe.pedidos;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import br.com.lojacafe.pedidos.controller.FichaController;
+import br.com.lojacafe.pedidos.service.ConsumoInsumos;
 import br.com.lojacafe.pedidos.model.Extra;
 import br.com.lojacafe.pedidos.model.FichaExtra;
 import br.com.lojacafe.pedidos.model.FichaProduto;
@@ -28,7 +28,7 @@ class ConsumoInsumosTest {
     }
 
     private static Map<Long, BigDecimal> calcular(List<ItemPedido> itens) {
-        return FichaController.calcular(itens,
+        return ConsumoInsumos.calcular(itens,
                 // produto 7 gasta 150 de leite; produto 8 não tem ficha
                 produtoId -> produtoId == 7L ? List.of(new FichaProduto(7L, LEITE, new BigDecimal("150.000"))) : List.of(),
                 // chantilly gasta 20 de chantilly; os outros extras não têm ficha
@@ -73,7 +73,7 @@ class ConsumoInsumosTest {
 
     @Test
     void arredondaParaTresCasas() {
-        var consumo = FichaController.calcular(List.of(item(9, 1, Tamanho.PEQUENO, null)),
+        var consumo = ConsumoInsumos.calcular(List.of(item(9, 1, Tamanho.PEQUENO, null)),
                 produtoId -> List.of(new FichaProduto(9L, LEITE, new BigDecimal("1.001"))), extra -> List.of());
         assertQtd("0.751", consumo, LEITE); // 1,001 × 0,75 = 0,75075
         assertEquals(3, consumo.get(LEITE).scale());

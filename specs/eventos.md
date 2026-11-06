@@ -9,7 +9,7 @@ Produtor em Python (confluent-kafka) usa `"partitioner": "murmur2_random"`, o me
 do cliente Java: a mesma chave cai na mesma partição, venha de onde vier.
 
 ## Tópico `pedidos-criados` (3 partições)
-Quem publica: `pedidos-api`, logo depois de gravar o pedido.
+Quem publica: `pedidos-api`, junto com a gravação do pedido (padrão Outbox: o evento é gravado na mesma transação do pedido e entregue ao Kafka logo depois, em ordem; se o Kafka estiver fora, espera no banco e sai quando ele voltar. Entrega "pelo menos uma vez": quem lê já ignora repetição).
 ```json
 { "versao": 3, "pedidoId": 12, "lojaId": 1, "cliente": "Ana",
   "itens": [ { "item": "Café coado", "quantidade": 2 } ],
@@ -42,7 +42,7 @@ Quem publica: `pedidos-api`, quando o gerente cancela um pedido `PIX` que já es
 O Pagamentos pede a devolução ao provedor do Pix e responde em `pagamentos-resultados` com o status `ESTORNADO` (devolvido) ou `ESTORNO_FALHOU`
 (`motivo` preenchido). Nenhum dos dois é decisão de pagamento: a API só marca `estornadoEm` no `ESTORNADO` (e ignora se o pedido não estiver pago e cancelado)
 e, no `ESTORNO_FALHOU`, só registra no log, e o gerente usa `PUT /pedidos/{id}/estorno`. Com `PIX_PROVEDOR=automatico` o Pagamentos não responde (estorno sempre à mão).
-Se o pedido de estorno não sair (Kafka fora), o cancelamento vale e o gerente registra à mão.
+O pedido de estorno também passa pela Outbox: sai quando o Kafka voltar. Se o provedor falhar, o cancelamento vale e o gerente registra à mão.
 
 ## Grupos de consumidores
 | Grupo | Lê | Quem |

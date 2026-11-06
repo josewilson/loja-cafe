@@ -35,7 +35,7 @@ flowchart LR
     K -. "lê os dois tópicos" .-> N["analytics-py<br/>painel de vendas"]
 ```
 
-1. O front chama `POST /pedidos`. A API valida, calcula o valor, grava no Postgres e publica `pedidos-criados`.
+1. O front chama `POST /pedidos`. A API valida, calcula o valor, grava no Postgres e anota `pedidos-criados` na Outbox (mesma transação); um relé entrega ao Kafka em segundos.
 2. Um caixa do Pagamentos lê o evento, espera 3 s (o "banco") e decide: **aprovado até R$ 100,00**, acima disso recusa.
 3. O resultado vai para `pagamentos-resultados`; a API lê e atualiza o pedido para `PAGO` ou `RECUSADO`.
 4. O front consulta `GET /pedidos` a cada 2 s e mostra o status mudando.
