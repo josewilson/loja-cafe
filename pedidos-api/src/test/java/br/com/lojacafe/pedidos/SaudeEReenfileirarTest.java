@@ -36,7 +36,18 @@ class SaudeEReenfileirarTest extends ApiTestBase {
         GET(null, "/saude").andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ok"))
                 .andExpect(jsonPath("$.banco").value("ok"))
-                .andExpect(jsonPath("$.kafka").value("ok"));
+                .andExpect(jsonPath("$.kafka").value("ok"))
+                .andExpect(jsonPath("$.outbox").value("ok")); // fila vazia no H2: consulta real
+    }
+
+    @Test
+    void outboxAtrasadaDa503() throws Exception {
+        org.mockito.Mockito.doReturn(true).when(saude).kafkaVivo();
+        org.mockito.Mockito.doReturn(false).when(saude).outboxEmDia();
+        GET(null, "/saude").andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.status").value("falha"))
+                .andExpect(jsonPath("$.kafka").value("ok"))
+                .andExpect(jsonPath("$.outbox").value("atrasada"));
     }
 
     @Test

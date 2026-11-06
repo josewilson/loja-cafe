@@ -41,7 +41,7 @@ A primeira construção baixa o Maven, o npm e as imagens: leva alguns minutos. 
 
 ## Verificar se está tudo bem
 ```bash
-curl -s https://SEU-ENDERECO/api/saude        # {"status":"ok","banco":"ok","kafka":"ok"}
+curl -s https://SEU-ENDERECO/api/saude        # {"status":"ok","banco":"ok","kafka":"ok","outbox":"ok"}
 ENV_FILE=deploy/.env bash scripts/e2e.sh https://SEU-ENDERECO/api      # o teste de ponta a ponta de 14 passos
 ```
 (Com `localhost`, use `CURL_OPTS=-k` no segundo comando, para aceitar o certificado de teste.) O `e2e.sh` cria lojas e produtos de

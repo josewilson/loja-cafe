@@ -50,9 +50,9 @@ Tamanhos, extras e formas de pagamento aceitos. Resposta `200`:
 | `DINHEIRO` | 1 | Pagamento no balcão: aprova na hora |
 
 ### GET /saude
-Diz se a API está de pé: o banco responde e o Kafka está acessível. Serve ao monitoramento e à verificação de saúde do Docker.
-Não revela detalhes internos. `200` com `{ "status": "ok", "banco": "ok", "kafka": "ok" }`; se algo falhar, `503` com
-`"status": "falha"` e `"falha"` no item que não respondeu. O resultado do Kafka vale por 10 s (não abre uma conexão nova a cada chamada).
+Diz se a API está de pé: o banco responde, o Kafka está acessível e a fila de eventos a entregar (Outbox, `specs/eventos.md`) anda. Serve ao monitoramento e à verificação de saúde do Docker.
+Não revela detalhes internos. `200` com `{ "status": "ok", "banco": "ok", "kafka": "ok", "outbox": "ok" }`; se algo falhar, `503` com
+`"status": "falha"` e `"falha"` no item que não respondeu (na `outbox`, `"atrasada"`: há evento esperando para chegar ao Kafka há mais de 60 s). O resultado do Kafka vale por 10 s (não abre uma conexão nova a cada chamada).
 
 ## Login
 O token é aleatório, vale 24 h e vai em `Authorization: Bearer <token>`. Senha de 8 a 72 caracteres (BCrypt).

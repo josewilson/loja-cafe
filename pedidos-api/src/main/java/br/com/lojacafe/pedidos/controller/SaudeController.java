@@ -1,5 +1,8 @@
 package br.com.lojacafe.pedidos.controller;
 
+import java.sql.Timestamp;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,11 +15,13 @@ import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Público, para o monitoramento e para o Docker (GET /saude). Só diz ok/falha do banco e do Kafka, sem detalhes internos. */
+/** Público, para o monitoramento e para o Docker (GET /saude). Só diz ok/falha do banco, do Kafka e da Outbox, sem detalhes internos. */
 @RestController
 public class SaudeController {
 
     private static final long VALIDADE_KAFKA_MS = 10_000;
+    // ponytail: 60 s fixos; evento pendente há mais que isso = o relé não está conseguindo entregar ao Kafka. Virar configuração se precisar.
+    private static final Duration OUTBOX_ATRASO = Duration.ofSeconds(60);
 
     private final JdbcTemplate jdbc;
     private final KafkaAdmin kafkaAdmin;
@@ -33,11 +38,14 @@ public class SaudeController {
     public ResponseEntity<Map<String, String>> saude() {
         boolean banco = bancoVivo();
         boolean kafka = kafkaVivo();
+        boolean outbox = outboxEmDia();
+        boolean tudo = banco && kafka && outbox;
         Map<String, String> corpo = new LinkedHashMap<>();
-        corpo.put("status", banco && kafka ? "ok" : "falha");
+        corpo.put("status", tudo ? "ok" : "falha");
         corpo.put("banco", banco ? "ok" : "falha");
         corpo.put("kafka", kafka ? "ok" : "falha");
-        return ResponseEntity.status(banco && kafka ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE).body(corpo);
+        corpo.put("outbox", outbox ? "ok" : "atrasada");
+        return ResponseEntity.status(tudo ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE).body(corpo);
     }
 
     public boolean bancoVivo() {
@@ -46,6 +54,17 @@ public class SaudeController {
             return true;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    /** A fila da Outbox anda? Falso se algum evento espera há mais de 60 s para chegar ao Kafka. */
+    public boolean outboxEmDia() {
+        try {
+            Long atrasados = jdbc.queryForObject("select count(*) from evento_saida where enviado_em is null and criado_em < ?",
+                    Long.class, Timestamp.from(Instant.now().minus(OUTBOX_ATRASO)));
+            return atrasados == null || atrasados == 0;
+        } catch (Exception e) {
+            return true; // sem banco o "banco: falha" já derruba o status; aqui não duplica o alarme
         }
     }
 
