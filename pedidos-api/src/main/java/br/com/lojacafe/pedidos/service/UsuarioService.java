@@ -7,7 +7,6 @@ import br.com.lojacafe.pedidos.repository.AuditoriaRepository;
 import br.com.lojacafe.pedidos.repository.LojaRepository;
 import br.com.lojacafe.pedidos.repository.SessaoRepository;
 import br.com.lojacafe.pedidos.repository.UsuarioRepository;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.Duration;
 import java.time.Instant;

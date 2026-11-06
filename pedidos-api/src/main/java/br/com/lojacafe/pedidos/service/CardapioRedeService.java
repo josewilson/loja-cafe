@@ -2,19 +2,16 @@ package br.com.lojacafe.pedidos.service;
 
 import br.com.lojacafe.pedidos.model.EstoqueLoja;
 import br.com.lojacafe.pedidos.model.Loja;
-import br.com.lojacafe.pedidos.model.Papel;
 import br.com.lojacafe.pedidos.model.Produto;
 import br.com.lojacafe.pedidos.model.Usuario;
 import br.com.lojacafe.pedidos.repository.AuditoriaRepository;
 import br.com.lojacafe.pedidos.repository.EstoqueLojaRepository;
 import br.com.lojacafe.pedidos.repository.LojaRepository;
 import br.com.lojacafe.pedidos.repository.ProdutoRepository;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

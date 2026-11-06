@@ -1,7 +1,6 @@
 package br.com.lojacafe.pedidos.service;
 
 import br.com.lojacafe.pedidos.model.Auditoria;
-import br.com.lojacafe.pedidos.model.Papel;
 import br.com.lojacafe.pedidos.model.Usuario;
 import br.com.lojacafe.pedidos.repository.AuditoriaRepository;
 import java.util.List;

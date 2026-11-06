@@ -1,6 +1,5 @@
 package br.com.lojacafe.pedidos.service;
 
-import br.com.lojacafe.pedidos.model.Papel;
 import br.com.lojacafe.pedidos.model.Pedido;
 import br.com.lojacafe.pedidos.model.Preparo;
 import br.com.lojacafe.pedidos.model.StatusPedido;

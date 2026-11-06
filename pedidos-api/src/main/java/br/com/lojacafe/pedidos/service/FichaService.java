@@ -4,8 +4,6 @@ import br.com.lojacafe.pedidos.model.Extra;
 import br.com.lojacafe.pedidos.model.FichaExtra;
 import br.com.lojacafe.pedidos.model.FichaProduto;
 import br.com.lojacafe.pedidos.model.Insumo;
-import br.com.lojacafe.pedidos.model.Papel;
-import br.com.lojacafe.pedidos.model.Pedido;
 import br.com.lojacafe.pedidos.model.Produto;
 import br.com.lojacafe.pedidos.model.UnidadeInsumo;
 import br.com.lojacafe.pedidos.model.Usuario;
