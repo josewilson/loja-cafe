@@ -19,5 +19,5 @@ EXPOSE 8081
 # Usa até 65% da memória do contêiner e morre limpo se ela acabar (o Docker reinicia).
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=65 -XX:+ExitOnOutOfMemoryError"
 HEALTHCHECK --interval=15s --timeout=5s --start-period=90s --retries=5 \
-    CMD curl -fs http://localhost:8081/saude > /dev/null || exit 1
+    CMD curl -fs http://localhost:8082/actuator/health/readiness > /dev/null || exit 1
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
