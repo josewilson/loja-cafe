@@ -11,13 +11,19 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.FixedBackOff;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -30,6 +36,8 @@ public class PagamentosKafka {
     public static final String PEDIDOS_CRIADOS = "pedidos-criados";
     public static final String PAGAMENTOS_RESULTADOS = "pagamentos-resultados";
     public static final String PAGAMENTOS_ESTORNOS = "pagamentos-estornos";
+    /** Mensagem de pagamentos-resultados que falhou nas 3 tentativas: fica aqui para alguém olhar (specs/eventos.md). */
+    public static final String PAGAMENTOS_RESULTADOS_DLT = PAGAMENTOS_RESULTADOS + ".DLT";
 
     record ItemEvento(String item, int quantidade) {}
 
@@ -78,6 +86,23 @@ public class PagamentosKafka {
     @Bean
     static NewTopic pagamentosEstornos() {
         return TopicBuilder.name(PAGAMENTOS_ESTORNOS).partitions(3).replicas(1).build();
+    }
+
+    // Mesmas 3 partições do tópico de origem: o recuperador manda a mensagem para a mesma partição da DLT.
+    @Bean
+    static NewTopic pagamentosResultadosDlt() {
+        return TopicBuilder.name(PAGAMENTOS_RESULTADOS_DLT).partitions(3).replicas(1).build();
+    }
+
+    /**
+     * Mensagem que falha ao ser processada é tentada 3 vezes (1 s entre elas) e então vai para a DLT; o consumo segue.
+     * Sem isto, uma mensagem ruim travaria a partição para sempre. JSON ilegível não adianta tentar de novo: vai direto.
+     */
+    @Bean
+    static DefaultErrorHandler erroDoConsumidor(KafkaTemplate<String, String> kafka) {
+        var tratador = new DefaultErrorHandler(new DeadLetterPublishingRecoverer(kafka, (registro, erro) -> new TopicPartition(registro.topic() + ".DLT", registro.partition())), new FixedBackOff(1000L, 2L));
+        tratador.addNotRetryableExceptions(JacksonException.class);
+        return tratador;
     }
 
     // ---------- saída: pagamentos-estornos ----------

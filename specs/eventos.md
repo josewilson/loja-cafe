@@ -44,6 +44,11 @@ O Pagamentos pede a devolução ao provedor do Pix e responde em `pagamentos-res
 e, no `ESTORNO_FALHOU`, só registra no log, e o gerente usa `PUT /pedidos/{id}/estorno`. Com `PIX_PROVEDOR=automatico` o Pagamentos não responde (estorno sempre à mão).
 O pedido de estorno também passa pela Outbox: sai quando o Kafka voltar. Se o provedor falhar, o cancelamento vale e o gerente registra à mão.
 
+## Tópico `pagamentos-resultados.DLT` (3 partições) · dead-letter
+Quem publica: `pedidos-api`, quando uma mensagem de `pagamentos-resultados` falha no processamento. São 3 tentativas (1 s entre elas); JSON ilegível vai
+direto, sem repetir. A mensagem original segue **intacta**, na mesma partição, com os cabeçalhos `kafka_dlt-exception-*` dizendo o motivo.
+Ninguém lê este tópico: é a fila para um humano olhar (no kafka-ui, porta 8090) e, se for o caso, reenviar à mão. Sem ela, uma mensagem ruim travaria a partição.
+
 ## Grupos de consumidores
 | Grupo | Lê | Quem |
 |---|---|---|
