@@ -27,8 +27,8 @@ Pagamentos decide em segundos e o status muda sozinho na tela, sem recarregar a 
 ```mermaid
 flowchart LR
     F["front<br/>React · 5173"] -- HTTP --> A["pedidos-api<br/>Spring Boot · 8081"]
-    A --> DB[("Postgres<br/>5433")]
-    A -- "pedidos-criados" --> K{{"Kafka<br/>9092"}}
+    A --> DB[("Postgres<br/>5433<br/>pedido + Outbox")]
+    A -- "relé da Outbox: pedidos-criados" --> K{{"Kafka<br/>9092"}}
     K -- "pedidos-criados" --> P["pagamentos-py<br/>caixa-1, caixa-2…"]
     P -- "pagamentos-resultados" --> K
     K -- "pagamentos-resultados" --> A
@@ -256,7 +256,8 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 
 | Tópico | Quem publica | Quem lê (grupo) |
 |---|---|---|
-| `pedidos-criados` | `pedidos-api` | `pagamentos-py` (`pagamentos`), `analytics-py` (`analytics`) |
+| `pedidos-criados` | `pedidos-api` (via Outbox) | `pagamentos-py` (`pagamentos`), `analytics-py` (`analytics`) |
+| `pagamentos-estornos` | `pedidos-api` (via Outbox) | `pagamentos-py` (`pagamentos`) |
 | `pagamentos-resultados` | `pagamentos-py` | `pedidos-api` (`pedidos-api`), `analytics-py` (`analytics`) |
 
 ## Banco de dados e ferramentas
@@ -271,7 +272,7 @@ Contrato em [`specs/eventos.md`](specs/eventos.md): JSON em texto, chave = `pedi
 ## Testes
 
 ```bash
-cd pedidos-api   && ./mvnw test                 # 140 testes: regras, validação, login, papéis, estoque, caixa, insumos e HTTP (H2 em memória, sem Docker)
+cd pedidos-api   && ./mvnw test                 # 143 testes, em classes por área (acesso, pedidos e cozinha, pagamento, caixa, insumos…) sobre um ApiTestBase; H2 em memória, sem Docker
 cd pagamentos-py && python -m unittest -v       # 31 testes: regras, formas de pagamento, evento inválido e Pix (simulado, Mercado Pago com API falsa, webhook assinado)
 cd front         && npm run lint                # oxlint
 node scripts/conferir-specs.js                  # o código e as specs/ dizem a mesma coisa (rotas, eventos, tópicos, papéis, status)
@@ -284,7 +285,7 @@ bash scripts/testar-backup.sh                   # backup, cifra, cópia de fora,
 ```
 loja-cafe/
 ├── front/            React + Vite: login e telas por papel (balcão, cozinha, gerência, ADMIN)
-├── pedidos-api/      Spring Boot (controllers, entidades, repositórios, migrações Flyway, eventos Kafka)
+├── pedidos-api/      Spring Boot (controllers finos, services com as regras, entidades, repositórios, migrações Flyway, Outbox + Kafka)
 ├── pagamentos-py/    Flask + Waitress + consumidor Kafka em thread própria
 ├── analytics-py/     Painel de vendas lido do Kafka
 ├── infra/            Desenvolvimento: compose.yml (Postgres, Kafka, kafka-ui) e .env.example
@@ -338,6 +339,7 @@ Ainda não existem a hospedagem de verdade, a nota fiscal real (só simulada) ne
 | 8b. Nova senha por link | O gerente (ou ADMIN) gera um link de uso único, válido por 1 hora (`POST /usuarios/{id}/redefinicao`), e entrega à pessoa; ela abre `/?redefinir=...` e escolhe a senha (`POST /auth/redefinir-senha`). Sem e-mail: nada a contratar; as sessões abertas da conta caem | feita |
 | 8c. Link de senha pelo servidor | `scripts/link-senha.sh <email>` gera o link direto no banco, para o ADMIN que esqueceu a senha (ninguém mais pode gerar o dele). Não passa pela API, então não grava auditoria | feita |
 | 9a. Tela de auditoria | Aba "Auditoria" na Gerência: os últimos 200 registros de `GET /auditoria` (quem, ação, item, detalhe), com filtro por ação. Só front | feita |
+| 9b. Arquitetura da API | Camada de serviço (`service/`): os controllers só recebem a requisição e chamam um serviço (`PedidoService`, `CaixaService`…); `AuthController` dividido em `Porteiro` (autenticação, CORS), `ForcaBruta` e `Acesso`; consumo de insumos em `ConsumoInsumos`. **Outbox**: pedido e evento gravados na mesma transação (`evento_saida`), relé entrega ao Kafka em ordem e tenta de novo se o broker cair (pelo menos uma vez). Testes divididos por área | feita |
 
 ## Cuidados
 
